@@ -451,6 +451,12 @@
             populatePriorityOptions();
             renderTasks();
             renderDailyTasks();
+            
+            // Make functions globally available for onclick handlers
+            window.showAddTasksModal = showAddTasksModal;
+            window.hideAddTasksModal = hideAddTasksModal;
+            window.addSelectedTasks = addSelectedTasks;
+            window.toggleAddTasksCategory = toggleAddTasksCategory;
         });
 
         function updateCurrentDate() {
@@ -1191,6 +1197,127 @@
             link.click();
             
             URL.revokeObjectURL(url);
+        }
+
+        function showAddTasksModal() {
+            console.log('showAddTasksModal called'); // Debug line
+            
+            const activeDailyTasks = dailyTasks.filter(t => !t.completed);
+            const modal = document.getElementById('add-tasks-modal');
+            const warning = document.getElementById('add-tasks-warning');
+            
+            console.log('Active daily tasks:', activeDailyTasks.length); // Debug line
+            console.log('Modal element:', modal); // Debug line
+            
+            if (!modal) {
+                console.error('Modal not found!');
+                return;
+            }
+            
+            if (activeDailyTasks.length >= 10) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+            
+            renderAddTasksList();
+            modal.classList.add('show');
+        }
+
+        function hideAddTasksModal() {
+            document.getElementById('add-tasks-modal').classList.remove('show');
+        }
+
+        function renderAddTasksList() {
+            const container = document.getElementById('add-tasks-list');
+            const availableTasks = tasks.filter(task => 
+                !task.completed && !dailyTasks.find(dt => dt.id === task.id)
+            );
+            
+            if (availableTasks.length === 0) {
+                container.innerHTML = '<p class="text-gray text-center py-4">No available tasks to add.</p>';
+                return;
+            }
+            
+            // Group tasks by category
+            const tasksByCategory = {};
+            Object.keys(categories).forEach(key => {
+                tasksByCategory[key] = availableTasks.filter(task => task.category === key);
+            });
+            
+            let html = '';
+            
+            Object.entries(tasksByCategory).forEach(([categoryKey, categoryTasks]) => {
+                if (categoryTasks.length === 0) return;
+                
+                html += `
+                    <div class="category-section" style="margin-bottom: 1rem;">
+                        <div class="category-header" onclick="toggleAddTasksCategory('${categoryKey}')" style="cursor: pointer;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="width: 12px; height: 12px; border-radius: 50%; background: ${getCategoryColor(categoryKey)};"></span>
+                                <span class="font-bold">${categories[categoryKey].name} (${categoryTasks.length})</span>
+                            </div>
+                            <span id="add-chevron-${categoryKey}">▼</span>
+                        </div>
+                        <div class="category-content" id="add-content-${categoryKey}" style="padding: 0.75rem;">
+                            ${categoryTasks.map(task => `
+                                <label class="radio-item" style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" name="selected-tasks" value="${task.id}" style="margin-top: 0.25rem;">
+                                    <div>
+                                        <div style="font-weight: 500;">${task.text}</div>
+                                        <div style="font-size: 0.75rem; color: #6b7280;">
+                                            <span class="badge badge-${task.priority}" style="margin-right: 0.5rem;">${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>
+                                        </div>
+                                    </div>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function toggleAddTasksCategory(categoryKey) {
+            const content = document.getElementById(`add-content-${categoryKey}`);
+            const chevron = document.getElementById(`add-chevron-${categoryKey}`);
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                chevron.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                chevron.textContent = '▶';
+            }
+        }
+
+        function addSelectedTasks() {
+            const activeDailyTasks = dailyTasks.filter(t => !t.completed);
+            const selectedCheckboxes = document.querySelectorAll('input[name="selected-tasks"]:checked');
+            const selectedTaskIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+            
+            if (selectedTaskIds.length === 0) {
+                alert('Please select at least one task to add.');
+                return;
+            }
+            
+            if (activeDailyTasks.length + selectedTaskIds.length > 10) {
+                alert(`You can only add ${10 - activeDailyTasks.length} more task(s) to reach the daily limit of 10.`);
+                return;
+            }
+            
+            selectedTaskIds.forEach(taskId => {
+                const task = tasks.find(t => t.id === taskId);
+                if (task && !dailyTasks.find(dt => dt.id === taskId)) {
+                    dailyTasks.push({...task});
+                }
+            });
+            
+            saveToStorage();
+            renderDailyTasks();
+            updateDailyView();
+            hideAddTasksModal();
         }
     </script>
 </body>
