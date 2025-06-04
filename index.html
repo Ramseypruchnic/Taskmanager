@@ -376,24 +376,42 @@
         <div id="daily-view" class="hidden">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-                    <h2 class="font-bold">Today's Focus (<span id="daily-count">0</span>/10 active tasks)</h2>
+                    <h2 class="font-bold">Today's Focus (<span id="daily-count">0</span>/10 active • <span id="completed-count">0</span> completed)</h2>
                     <div class="text-gray" id="current-date"></div>
                 </div>
                 
+                <div style="margin-bottom: 1rem;">
+                    <button class="btn btn-primary" onclick="showAddTasksModal()">Add Tasks</button>
+                </div>
+                
                 <div id="daily-limit-warning" class="alert alert-warning hidden">
-                    📋 Daily limit reached! Focus on completing tasks before adding more.
+                    📋 You have already reached your daily focus task limit (10 tasks)
                 </div>
                 
                 <div id="daily-tasks-container">
                     <div class="text-center py-8">
                         <p class="text-gray mb-4">No tasks selected for today.</p>
-                        <button class="btn btn-primary" onclick="showView('capture')">Add Tasks from Capture</button>
+                        <button class="btn btn-primary" onclick="showAddTasksModal()">Add Tasks</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
+    <div id="add-tasks-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="font-bold mb-4">Add Tasks to Daily Focus</h3>
+            <div id="add-tasks-warning" class="alert alert-warning hidden">
+                You have already reached your daily focus task limit (10 tasks)
+            </div>
+            <div id="add-tasks-list"></div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="addSelectedTasks()">Add Selected Tasks</button>
+                <button class="btn btn-secondary" onclick="hideAddTasksModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="completion-modal" class="modal">
         <div class="modal-content">
             <h3 class="font-bold mb-4">Daily Review</h3>
@@ -786,18 +804,65 @@
 
         function addTask() {
             const input = document.getElementById('task-input');
-            const text = input.value.trim();
+            let text = input.value.trim();
             
             if (!text) return;
             
+            let selectedCategory = null;
+            let selectedPriority = null;
+            
+            // Parse @ mentions and remove them from task text
+            const atMentions = text.match(/@\w+/g) || [];
+            
+            atMentions.forEach(mention => {
+                const mentionText = mention.substring(1).toLowerCase();
+                
+                // Check if it matches a category
+                Object.entries(categories).forEach(([key, category]) => {
+                    if (category.name.toLowerCase().replace(/\s+/g, '') === mentionText ||
+                        key === mentionText) {
+                        selectedCategory = key;
+                    }
+                });
+                
+                // Check if it matches a priority
+                priorities.forEach(priority => {
+                    if (priority.toLowerCase() === mentionText) {
+                        selectedPriority = priority;
+                    }
+                });
+                
+                // Remove the @ mention from the text
+                text = text.replace(mention, '').trim();
+            });
+            
+            // Clean up multiple spaces
+            text = text.replace(/\s+/g, ' ').trim();
+            
+            if (!text) return; // Don't create empty tasks
+            
+            // Use parsed values or fall back to selected radio buttons
             const categoryEl = document.querySelector('input[name="category"]:checked');
             const priorityEl = document.querySelector('input[name="priority"]:checked');
+            
+            const finalCategory = selectedCategory || (categoryEl ? categoryEl.value : 'personal');
+            const finalPriority = selectedPriority || (priorityEl ? priorityEl.value : 'medium');
+            
+            // Update radio buttons to match parsed values
+            if (selectedCategory) {
+                const categoryRadio = document.querySelector(`input[name="category"][value="${selectedCategory}"]`);
+                if (categoryRadio) categoryRadio.checked = true;
+            }
+            if (selectedPriority) {
+                const priorityRadio = document.querySelector(`input[name="priority"][value="${selectedPriority}"]`);
+                if (priorityRadio) priorityRadio.checked = true;
+            }
             
             const task = {
                 id: Date.now(),
                 text: text,
-                category: categoryEl ? categoryEl.value : 'personal',
-                priority: priorityEl ? priorityEl.value : 'medium',
+                category: finalCategory,
+                priority: finalPriority,
                 completed: false,
                 createdAt: new Date()
             };
@@ -959,12 +1024,13 @@
             const completedTasks = dailyTasks.filter(task => task.completed);
             
             document.getElementById('daily-count').textContent = activeTasks.length;
+            document.getElementById('completed-count').textContent = completedTasks.length;
             
             if (dailyTasks.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-8">
                         <p class="text-gray mb-4">No tasks selected for today.</p>
-                        <button class="btn btn-primary" onclick="showView('capture')">Add Tasks from Capture</button>
+                        <button class="btn btn-primary" onclick="showAddTasksModal()">Add Tasks</button>
                     </div>
                 `;
                 return;
