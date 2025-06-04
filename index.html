@@ -235,6 +235,92 @@
         
         .hidden { display: none; }
         
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #3b82f6;
+            border-top: none;
+            border-radius: 0 0 0.5rem 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .suggestion-item {
+            padding: 0.75rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .suggestion-item:hover,
+        .suggestion-item.active {
+            background: #eff6ff;
+        }
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        .suggestion-type {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .input-container {
+            position: relative;
+        }
+        
+        .edit-section {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .edit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .edit-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .edit-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            border: 1px solid #d1d5db;
+        }
+        .edit-item button {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 0.125rem;
+        }
+        .add-item-form {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .add-item-input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+        
         @media (max-width: 768px) {
             .container { padding: 0.5rem; }
             .nav { flex-wrap: wrap; }
@@ -297,42 +383,53 @@
                 <h2 class="font-bold mb-4">Quick Capture</h2>
                 
                 <div class="input-group">
-                    <input type="text" id="task-input" class="text-input" placeholder="Enter your task here..." onkeydown="handleTaskInput(event)">
+                    <div class="input-container">
+                        <input type="text" id="task-input" class="text-input" placeholder='Enter your task here... (use @category or @priority)' onkeydown="handleTaskInput(event)" oninput="handleSmartInput(event)" onblur="hideSuggestions()">
+                        <div id="suggestions-dropdown" class="suggestions-dropdown hidden"></div>
+                    </div>
                 </div>
                 
-                <div class="input-group">
-                    <label>Category</label>
-                    <div class="radio-group">
-                        <label class="radio-item">
-                            <input type="radio" name="category" value="personal" checked>
-                            <span>Personal</span>
-                        </label>
-                        <label class="radio-item">
-                            <input type="radio" name="category" value="strategylabs">
-                            <span>Strategy Labs</span>
-                        </label>
-                        <label class="radio-item">
-                            <input type="radio" name="category" value="unomas">
-                            <span>Uno Mas</span>
-                        </label>
+                <div id="edit-categories" class="edit-section hidden">
+                    <div class="edit-header">
+                        <h4>Edit Categories</h4>
+                        <button class="btn btn-sm btn-secondary" onclick="toggleEditCategories()">Done</button>
+                    </div>
+                    <div class="edit-items" id="categories-list"></div>
+                    <div class="add-item-form">
+                        <input type="text" id="new-category-input" class="add-item-input" placeholder="Add new category">
+                        <button class="btn btn-sm btn-primary" onclick="addCategory()">Add</button>
+                    </div>
+                </div>
+                
+                <div id="edit-priorities" class="edit-section hidden">
+                    <div class="edit-header">
+                        <h4>Edit Priorities</h4>
+                        <button class="btn btn-sm btn-secondary" onclick="toggleEditPriorities()">Done</button>
+                    </div>
+                    <div class="edit-items" id="priorities-list"></div>
+                    <div class="add-item-form">
+                        <input type="text" id="new-priority-input" class="add-item-input" placeholder="Add new priority">
+                        <button class="btn btn-sm btn-primary" onclick="addPriority()">Add</button>
                     </div>
                 </div>
                 
                 <div class="input-group">
-                    <label>Priority</label>
-                    <div class="radio-group">
-                        <label class="radio-item">
-                            <input type="radio" name="priority" value="high">
-                            <span class="badge badge-high">High</span>
-                        </label>
-                        <label class="radio-item">
-                            <input type="radio" name="priority" value="medium" checked>
-                            <span class="badge badge-medium">Medium</span>
-                        </label>
-                        <label class="radio-item">
-                            <input type="radio" name="priority" value="low">
-                            <span class="badge badge-low">Low</span>
-                        </label>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label>Category</label>
+                        <button class="icon-btn" onclick="toggleEditCategories()" title="Edit categories">✏️</button>
+                    </div>
+                    <div class="radio-group" id="category-options">
+                        <!-- Categories will be populated dynamically -->
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label>Priority</label>
+                        <button class="icon-btn" onclick="toggleEditPriorities()" title="Edit priorities">✏️</button>
+                    </div>
+                    <div class="radio-group" id="priority-options">
+                        <!-- Priorities will be populated dynamically -->
                     </div>
                 </div>
                 
@@ -396,7 +493,21 @@
         let tokenClient = null;
         let driveFileId = null;
 
-        // Categories configuration
+        // Customizable categories and priorities
+        let categories = {
+            personal: { name: 'Personal', badge: 'badge-personal' },
+            strategylabs: { name: 'Strategy Labs', badge: 'badge-strategylabs' },
+            unomas: { name: 'Uno Mas', badge: 'badge-unomas' }
+        };
+
+        let priorities = ['high', 'medium', 'low'];
+
+        // Smart input state
+        let isShowingSuggestions = false;
+        let currentSuggestions = [];
+        let activeSuggestionIndex = -1;
+
+        // Categories configuration - moved to let for editing
         const categories = {
             personal: { name: 'Personal', badge: 'badge-personal' },
             strategylabs: { name: 'Strategy Labs', badge: 'badge-strategylabs' },
@@ -496,6 +607,8 @@
             showMainApp();
             loadFromLocalStorage();
             updateCurrentDate();
+            populateCategoryOptions();
+            populatePriorityOptions();
             renderTasks();
             renderDailyTasks();
         }
@@ -524,6 +637,8 @@
             }
             
             updateCurrentDate();
+            populateCategoryOptions();
+            populatePriorityOptions();
             renderTasks();
             renderDailyTasks();
         }
@@ -682,6 +797,8 @@
 
         function loadFromLocalStorage() {
             try {
+                loadCustomizations(); // Load custom categories/priorities first
+                
                 const savedTasks = localStorage.getItem('taskManagerTasks');
                 const savedDailyTasks = localStorage.getItem('taskManagerDailyTasks');
                 
@@ -779,6 +896,341 @@
         function handleTaskInput(event) {
             if (event.key === 'Enter') {
                 addTask();
+            } else if (event.key === 'ArrowDown') {
+                if (isShowingSuggestions) {
+                    event.preventDefault();
+                    navigateSuggestions(1);
+                }
+            } else if (event.key === 'ArrowUp') {
+                if (isShowingSuggestions) {
+                    event.preventDefault();
+                    navigateSuggestions(-1);
+                }
+            } else if (event.key === 'Tab' || event.key === 'Enter') {
+                if (isShowingSuggestions && activeSuggestionIndex >= 0) {
+                    event.preventDefault();
+                    selectSuggestion(currentSuggestions[activeSuggestionIndex]);
+                }
+            } else if (event.key === 'Escape') {
+                hideSuggestions();
+            }
+        }
+
+        function handleSmartInput(event) {
+            const input = event.target;
+            const text = input.value;
+            const cursorPos = input.selectionStart;
+            
+            // Find @ mentions
+            const beforeCursor = text.substring(0, cursorPos);
+            const atMatch = beforeCursor.match(/@(\w*)$/);
+            
+            if (atMatch) {
+                const searchTerm = atMatch[1].toLowerCase();
+                showSuggestions(searchTerm, cursorPos - atMatch[0].length);
+            } else {
+                hideSuggestions();
+            }
+        }
+
+        function showSuggestions(searchTerm, atPosition) {
+            const suggestions = [];
+            
+            // Add category suggestions
+            Object.entries(categories).forEach(([key, category]) => {
+                if (category.name.toLowerCase().includes(searchTerm)) {
+                    suggestions.push({
+                        type: 'category',
+                        key: key,
+                        display: category.name,
+                        value: `@${category.name.toLowerCase().replace(/\s+/g, '')}`
+                    });
+                }
+            });
+            
+            // Add priority suggestions
+            priorities.forEach(priority => {
+                if (priority.toLowerCase().includes(searchTerm)) {
+                    suggestions.push({
+                        type: 'priority',
+                        key: priority,
+                        display: priority.charAt(0).toUpperCase() + priority.slice(1),
+                        value: `@${priority}`
+                    });
+                }
+            });
+            
+            if (suggestions.length > 0) {
+                currentSuggestions = suggestions;
+                activeSuggestionIndex = 0;
+                isShowingSuggestions = true;
+                renderSuggestions();
+            } else {
+                hideSuggestions();
+            }
+        }
+
+        function renderSuggestions() {
+            const dropdown = document.getElementById('suggestions-dropdown');
+            
+            const html = currentSuggestions.map((suggestion, index) => `
+                <div class="suggestion-item ${index === activeSuggestionIndex ? 'active' : ''}" 
+                     onclick="selectSuggestion(currentSuggestions[${index}])">
+                    <span class="suggestion-type">${suggestion.type}:</span>
+                    <span>${suggestion.display}</span>
+                </div>
+            `).join('');
+            
+            dropdown.innerHTML = html;
+            dropdown.classList.remove('hidden');
+        }
+
+        function navigateSuggestions(direction) {
+            if (currentSuggestions.length === 0) return;
+            
+            activeSuggestionIndex += direction;
+            if (activeSuggestionIndex < 0) activeSuggestionIndex = currentSuggestions.length - 1;
+            if (activeSuggestionIndex >= currentSuggestions.length) activeSuggestionIndex = 0;
+            
+            renderSuggestions();
+        }
+
+        function selectSuggestion(suggestion) {
+            const input = document.getElementById('task-input');
+            const text = input.value;
+            const cursorPos = input.selectionStart;
+            
+            // Find the @ mention to replace
+            const beforeCursor = text.substring(0, cursorPos);
+            const atMatch = beforeCursor.match(/@(\w*)$/);
+            
+            if (atMatch) {
+                const newText = text.substring(0, cursorPos - atMatch[0].length) + 
+                               suggestion.value + ' ' + 
+                               text.substring(cursorPos);
+                input.value = newText;
+                
+                // Set cursor position after the replacement
+                const newCursorPos = cursorPos - atMatch[0].length + suggestion.value.length + 1;
+                input.setSelectionRange(newCursorPos, newCursorPos);
+                
+                // Auto-select the corresponding radio button
+                if (suggestion.type === 'category') {
+                    const categoryRadio = document.querySelector(`input[name="category"][value="${suggestion.key}"]`);
+                    if (categoryRadio) categoryRadio.checked = true;
+                } else if (suggestion.type === 'priority') {
+                    const priorityRadio = document.querySelector(`input[name="priority"][value="${suggestion.key}"]`);
+                    if (priorityRadio) priorityRadio.checked = true;
+                }
+            }
+            
+            hideSuggestions();
+            input.focus();
+        }
+
+        function hideSuggestions() {
+            setTimeout(() => {
+                isShowingSuggestions = false;
+                currentSuggestions = [];
+                activeSuggestionIndex = -1;
+                document.getElementById('suggestions-dropdown').classList.add('hidden');
+            }, 150);
+        }
+
+        function populateCategoryOptions() {
+            const container = document.getElementById('category-options');
+            let html = '';
+            let isFirst = true;
+            
+            Object.entries(categories).forEach(([key, category]) => {
+                html += `
+                    <label class="radio-item">
+                        <input type="radio" name="category" value="${key}" ${isFirst ? 'checked' : ''}>
+                        <span>${category.name}</span>
+                    </label>
+                `;
+                isFirst = false;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function populatePriorityOptions() {
+            const container = document.getElementById('priority-options');
+            let html = '';
+            
+            priorities.forEach((priority, index) => {
+                html += `
+                    <label class="radio-item">
+                        <input type="radio" name="priority" value="${priority}" ${index === 1 ? 'checked' : ''}>
+                        <span class="badge badge-${priority}">${priority.charAt(0).toUpperCase() + priority.slice(1)}</span>
+                    </label>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function toggleEditCategories() {
+            const editSection = document.getElementById('edit-categories');
+            const isHidden = editSection.classList.contains('hidden');
+            
+            if (isHidden) {
+                editSection.classList.remove('hidden');
+                renderEditableCategories();
+            } else {
+                editSection.classList.add('hidden');
+                populateCategoryOptions();
+                saveCustomizations();
+            }
+        }
+
+        function toggleEditPriorities() {
+            const editSection = document.getElementById('edit-priorities');
+            const isHidden = editSection.classList.contains('hidden');
+            
+            if (isHidden) {
+                editSection.classList.remove('hidden');
+                renderEditablePriorities();
+            } else {
+                editSection.classList.add('hidden');
+                populatePriorityOptions();
+                saveCustomizations();
+            }
+        }
+
+        function renderEditableCategories() {
+            const container = document.getElementById('categories-list');
+            let html = '';
+            
+            Object.entries(categories).forEach(([key, category]) => {
+                html += `
+                    <div class="edit-item">
+                        <span>${category.name}</span>
+                        <button onclick="deleteCategory('${key}')" title="Delete category">×</button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function renderEditablePriorities() {
+            const container = document.getElementById('priorities-list');
+            let html = '';
+            
+            priorities.forEach((priority, index) => {
+                html += `
+                    <div class="edit-item">
+                        <span class="badge badge-${priority}">${priority.charAt(0).toUpperCase() + priority.slice(1)}</span>
+                        ${priorities.length > 1 ? `<button onclick="deletePriority(${index})" title="Delete priority">×</button>` : ''}
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function addCategory() {
+            const input = document.getElementById('new-category-input');
+            const name = input.value.trim();
+            
+            if (!name) return;
+            
+            const key = name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+            
+            if (!categories[key]) {
+                categories[key] = {
+                    name: name,
+                    badge: `badge-${key}`
+                };
+                
+                input.value = '';
+                renderEditableCategories();
+                
+                // Add CSS for new category color
+                const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#8b5cf6', '#ec4899'];
+                const color = colors[Object.keys(categories).length % colors.length];
+                addDynamicCSS(`.badge-${key}`, `background: ${color}; color: white;`);
+                addDynamicCSS(`.task-item.${key}`, `border-color: ${color}40; background: ${color}10;`);
+            }
+        }
+
+        function addPriority() {
+            const input = document.getElementById('new-priority-input');
+            const priority = input.value.trim().toLowerCase();
+            
+            if (!priority || priorities.includes(priority)) return;
+            
+            priorities.push(priority);
+            input.value = '';
+            renderEditablePriorities();
+            
+            // Add CSS for new priority
+            const colors = ['#fef2f2', '#fefce8', '#f0fdf4', '#eff6ff'];
+            const textColors = ['#991b1b', '#a16207', '#065f46', '#1e40af'];
+            const colorIndex = priorities.length % colors.length;
+            
+            addDynamicCSS(`.badge-${priority}`, `background: ${colors[colorIndex]}; color: ${textColors[colorIndex]};`);
+        }
+
+        function deleteCategory(key) {
+            if (Object.keys(categories).length <= 1) {
+                alert('You must have at least one category.');
+                return;
+            }
+            
+            if (confirm(`Delete category "${categories[key].name}"?`)) {
+                delete categories[key];
+                renderEditableCategories();
+            }
+        }
+
+        function deletePriority(index) {
+            if (priorities.length <= 1) {
+                alert('You must have at least one priority.');
+                return;
+            }
+            
+            if (confirm(`Delete priority "${priorities[index]}"?`)) {
+                priorities.splice(index, 1);
+                renderEditablePriorities();
+            }
+        }
+
+        function addDynamicCSS(selector, rules) {
+            let styleSheet = document.getElementById('dynamic-styles');
+            if (!styleSheet) {
+                styleSheet = document.createElement('style');
+                styleSheet.id = 'dynamic-styles';
+                document.head.appendChild(styleSheet);
+            }
+            styleSheet.sheet.insertRule(`${selector} { ${rules} }`, styleSheet.sheet.cssRules.length);
+        }
+
+        function saveCustomizations() {
+            try {
+                localStorage.setItem('taskManagerCategories', JSON.stringify(categories));
+                localStorage.setItem('taskManagerPriorities', JSON.stringify(priorities));
+            } catch (error) {
+                console.warn('Could not save customizations:', error);
+            }
+        }
+
+        function loadCustomizations() {
+            try {
+                const savedCategories = localStorage.getItem('taskManagerCategories');
+                const savedPriorities = localStorage.getItem('taskManagerPriorities');
+                
+                if (savedCategories) {
+                    Object.assign(categories, JSON.parse(savedCategories));
+                }
+                
+                if (savedPriorities) {
+                    priorities = JSON.parse(savedPriorities);
+                }
+            } catch (error) {
+                console.warn('Could not load customizations:', error);
             }
         }
 
