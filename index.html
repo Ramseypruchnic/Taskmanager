@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Business Task Manager</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, memo } = React;
+        const { Plus, List, Target, Trash2, Edit3, Check, X, ChevronDown, ChevronRight } = lucide;
+
+        const TaskManager = () => {
+            const [tasks, setTasks] = useState([]);
+            const [dailyTasks, setDailyTasks] = useState([]);
+            const [newTask, setNewTask] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('personal');
+            const [selectedPriority, setSelectedPriority] = useState('medium');
+            const [activeView, setActiveView] = useState('capture');
+            const [editingTask, setEditingTask] = useState(null);
+            const [showCompletionReview, setShowCompletionReview] = useState(false);
+            const [expandedCategories, setExpandedCategories] = useState({
+                personal: true,
+                strategylabs: true,
+                unomas: true
+            });
+
+            const categories = {
+                personal: { name: 'Personal', color: 'bg-blue-500', lightColor: 'bg-blue-50 border-blue-200' },
+                strategylabs: { name: 'Strategy Labs', color: 'bg-purple-500', lightColor: 'bg-purple-50 border-purple-200' },
+                unomas: { name: 'Uno Mas', color: 'bg-orange-500', lightColor: 'bg-orange-50 border-orange-200' }
+            };
+
+            const checkDailyLimit = useCallback(() => {
+                const completedToday = dailyTasks.filter(task => task.completed).length;
+                const availableSlots = 10 - (dailyTasks.length - completedToday);
+                
+                if (dailyTasks.length > 0 && availableSlots > 0 && completedToday > 0) {
+                    setShowCompletionReview(true);
+                }
+            }, [dailyTasks]);
+
+            const addTask = useCallback(() => {
+                if (newTask.trim()) {
+                    const task = {
+                        id: Date.now(),
+                        text: newTask,
+                        category: selectedCategory,
+                        priority: selectedPriority,
+                        completed: false,
+                        createdAt: new Date()
+                    };
+                    setTasks(prev => [task, ...prev]);
+                    setNewTask('');
+                }
+            }, [newTask, selectedCategory, selectedPriority]);
+
+            const clearCompletedAndAddNew = useCallback(() => {
+                const activeTasks = dailyTasks.filter(task => !task.completed);
+                setDailyTasks(activeTasks);
+                setShowCompletionReview(false);
+            }, [dailyTasks]);
+
+            const deleteTask = useCallback((id, fromDaily = false) => {
+                if (fromDaily) {
+                    setDailyTasks(prev => prev.filter(task => task.id !== id));
+                } else {
+                    setTasks(prev => prev.filter(task => task.id !== id));
+                    setDailyTasks(prev => prev.filter(task => task.id !== id));
+                }
+            }, []);
+
+            const toggleTaskComplete = useCallback((id, fromDaily = false) => {
+                if (fromDaily) {
+                    setDailyTasks(prev => prev.map(task => 
+                        task.id === id ? { ...task, completed: !task.completed } : task
+                    ));
+                } else {
+                    setTasks(prev => prev.map(task => 
+                        task.id === id ? { ...task, completed: !task.completed } : task
+                    ));
+                }
+            }, []);
+
+            const addToDaily = useCallback((task) => {
+                const activeDailyTasks = dailyTasks.filter(t => !t.completed).length;
+                if (activeDailyTasks < 10 && !dailyTasks.find(t => t.id === task.id)) {
+                    setDailyTasks(prev => [...prev, { ...task }]);
+                }
+            }, [dailyTasks]);
+
+            const editTask = useCallback((id, newText) => {
+                setTasks(prev => prev.map(task => 
+                    task.id === id ? { ...task, text: newText } : task
+                ));
+                setEditingTask(null);
+            }, []);
+
+            const toggleCategory = useCallback((category) => {
+                setExpandedCategories(prev => ({
+                    ...prev,
+                    [category]: !prev[category]
+                }));
+            }, []);
+
+            useEffect(() => {
+                checkDailyLimit();
+            }, [checkDailyLimit]);
+
+            const TaskInput = memo(() => (
+                React.createElement('input', {
+                    type: 'text',
+                    value: newTask,
+                    onChange: (e) => setNewTask(e.target.value),
+                    onKeyDown: (e) => e.key === 'Enter' && addTask(),
+                    placeholder: 'Enter your task here...',
+                    className: 'w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none'
+                })
+            ));
+
+            const TaskItem = memo(({ task, fromDaily = false, showAddButton = false }) => (
+                React.createElement('div', {
+                    className: `p-3 rounded-lg border-2 ${categories[task.category].lightColor} mb-2`
+                }, 
+                    React.createElement('div', { className: 'flex items-start justify-between gap-3' },
+                        React.createElement('div', { className: 'flex items-start gap-3 flex-1' },
+                            React.createElement('button', {
+                                onClick: () => toggleTaskComplete(task.id, fromDaily),
+                                className: `mt-1 w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                    task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'
+                                }`
+                            }, task.completed && React.createElement(Check, { size: 12, className: 'text-white' })),
+                            
+                            React.createElement('div', { className: 'flex-1' },
+                                editingTask === task.id ? 
+                                    React.createElement('div', { className: 'flex gap-2' },
+                                        React.createElement('input', {
+                                            type: 'text',
+                                            defaultValue: task.text,
+                                            className: 'flex-1 p-1 border rounded',
+                                            onKeyDown: (e) => {
+                                                if (e.key === 'Enter') {
+                                                    editTask(task.id, e.target.value);
+                                                } else if (e.key === 'Escape') {
+                                                    setEditingTask(null);
+                                                }
+                                            },
+                                            autoFocus: true
+                                        }),
+                                        React.createElement('button', {
+                                            onClick: () => setEditingTask(null),
+                                            className: 'text-gray-500'
+                                        }, React.createElement(X, { size: 16 }))
+                                    ) :
+                                    React.createElement('div', null,
+                                        React.createElement('p', {
+                                            className: task.completed ? 'line-through text-gray-500' : ''
+                                        }, task.text),
+                                        React.createElement('div', { className: 'flex items-center gap-2 mt-1' },
+                                            React.createElement('span', {
+                                                className: `px-2 py-1 rounded text-xs text-white ${categories[task.category].color}`
+                                            }, categories[task.category].name),
+                                            React.createElement('span', {
+                                                className: `px-2 py-1 rounded text-xs ${
+                                                    task.priority === 'high' ? 'bg-red-100 text-red-800' :
+                                                    task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }`
+                                            }, task.priority.charAt(0).toUpperCase() + task.priority.slice(1))
+                                        )
+                                    )
+                            )
+                        ),
+                        
+                        React.createElement('div', { className: 'flex gap-1' },
+                            showAddButton && React.createElement('button', {
+                                onClick: () => addToDaily(task),
+                                disabled: dailyTasks.filter(t => !t.completed).length >= 10,
+                                className: `p-1 ${
+                                    dailyTasks.filter(t => !t.completed).length >= 10 
+                                        ? 'text-gray-300 cursor-not-allowed' 
+                                        : 'text-blue-500 hover:text-blue-700'
+                                }`,
+                                title: dailyTasks.filter(t => !t.completed).length >= 10 ? "Daily limit reached (10 tasks)" : "Add to daily tasks"
+                            }, React.createElement(Plus, { size: 16 })),
+                            React.createElement('button', {
+                                onClick: () => setEditingTask(task.id),
+                                className: 'text-gray-500 hover:text-gray-700 p-1'
+                            }, React.createElement(Edit3, { size: 16 })),
+                            React.createElement('button', {
+                                onClick: () => deleteTask(task.id, fromDaily),
+                                className: 'text-red-500 hover:text-red-700 p-1'
+                            }, React.createElement(Trash2, { size: 16 }))
+                        )
+                    )
+                )
+            ));
+
+            const CaptureView = () => (
+                React.createElement('div', { className: 'space-y-6' },
+                    React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-lg' },
+                        React.createElement('h2', { className: 'text-xl font-bold mb-4' }, 'Quick Capture'),
+                        React.createElement('div', { className: 'space-y-4' },
+                            React.createElement(TaskInput),
+                            
+                            React.createElement('div', { className: 'flex flex-wrap gap-4' },
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Category'),
+                                    React.createElement('div', { className: 'flex gap-3' },
+                                        Object.entries(categories).map(([key, cat]) => 
+                                            React.createElement('label', { key, className: 'flex items-center gap-2 cursor-pointer' },
+                                                React.createElement('input', {
+                                                    type: 'radio',
+                                                    name: 'category',
+                                                    value: key,
+                                                    checked: selectedCategory === key,
+                                                    onChange: (e) => setSelectedCategory(e.target.value),
+                                                    className: 'w-4 h-4'
+                                                }),
+                                                React.createElement('span', { className: 'text-sm' }, cat.name)
+                                            )
+                                        )
+                                    )
+                                ),
+                                
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Priority'),
+                                    React.createElement('div', { className: 'flex gap-3' },
+                                        ['high', 'medium', 'low'].map(priority => 
+                                            React.createElement('label', { key: priority, className: 'flex items-center gap-2 cursor-pointer' },
+                                                React.createElement('input', {
+                                                    type: 'radio',
+                                                    name: 'priority',
+                                                    value: priority,
+                                                    checked: selectedPriority === priority,
+                                                    onChange: (e) => setSelectedPriority(e.target.value),
+                                                    className: 'w-4 h-4'
+                                                }),
+                                                React.createElement('span', {
+                                                    className: `text-sm px-2 py-1 rounded ${
+                                                        priority === 'high' ? 'bg-red-100 text-red-800' :
+                                                        priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-gray-100 text-gray-800'
+                                                    }`
+                                                }, priority.charAt(0).toUpperCase() + priority.slice(1))
+                                            )
+                                        )
+                                    )
+                                )
+                            ),
+                            
+                            React.createElement('button', {
+                                onClick: addTask,
+                                className: 'bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 flex items-center gap-2'
+                            }, React.createElement(Plus, { size: 20 }), 'Add Task')
+                        )
+                    ),
+
+                    React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-lg' },
+                        React.createElement('h2', { className: 'text-xl font-bold mb-4' }, `All Tasks (${tasks.length})`),
+                        tasks.length === 0 ? 
+                            React.createElement('p', { className: 'text-gray-500 text-center py-8' }, 'No tasks yet. Start capturing your thoughts above!') :
+                            React.createElement('div', { className: 'space-y-4' },
+                                Object.entries(categories).map(([categoryKey, categoryInfo]) => {
+                                    const categoryTasks = tasks.filter(task => task.category === categoryKey);
+                                    if (categoryTasks.length === 0) return null;
+                                    
+                                    return React.createElement('div', { key: categoryKey, className: 'border rounded-lg' },
+                                        React.createElement('button', {
+                                            onClick: () => toggleCategory(categoryKey),
+                                            className: 'w-full p-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-t-lg'
+                                        },
+                                            React.createElement('div', { className: 'flex items-center gap-3' },
+                                                React.createElement('span', { className: `w-3 h-3 rounded-full ${categoryInfo.color}` }),
+                                                React.createElement('span', { className: 'font-medium' }, `${categoryInfo.name} (${categoryTasks.length})`)
+                                            ),
+                                            expandedCategories[categoryKey] ? 
+                                                React.createElement(ChevronDown, { size: 20 }) : 
+                                                React.createElement(ChevronRight, { size: 20 })
+                                        ),
+                                        expandedCategories[categoryKey] && React.createElement('div', { className: 'p-3' },
+                                            categoryTasks.map(task => 
+                                                React.createElement(TaskItem, { key: task.id, task, showAddButton: true })
+                                            )
+                                        )
+                                    );
+                                })
+                            )
+                    )
+                )
+            );
+
+            const DailyView = () => {
+                const tasksByCategory = Object.entries(categories).reduce((acc, [key, info]) => {
+                    acc[key] = dailyTasks.filter(task => task.category === key);
+                    return acc;
+                }, {});
+
+                const activeTasks = dailyTasks.filter(task => !task.completed);
+                const completedTasks = dailyTasks.filter(task => task.completed);
+
+                return React.createElement('div', { className: 'space-y-6' },
+                    showCompletionReview && React.createElement('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+                        React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-xl max-w-md w-full m-4' },
+                            React.createElement('h3', { className: 'text-lg font-bold mb-4' }, 'Daily Review'),
+                            React.createElement('p', { className: 'mb-4' }, 
+                                `Great job! You completed ${completedTasks.length} task(s) today. You can now add ${10 - activeTasks.length} more task(s) to your daily focus.`
+                            ),
+                            React.createElement('div', { className: 'flex gap-3' },
+                                React.createElement('button', {
+                                    onClick: clearCompletedAndAddNew,
+                                    className: 'bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600'
+                                }, 'Clear Completed & Add New Tasks'),
+                                React.createElement('button', {
+                                    onClick: () => setShowCompletionReview(false),
+                                    className: 'bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400'
+                                }, 'Keep All Tasks')
+                            )
+                        )
+                    ),
+
+                    React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-lg' },
+                        React.createElement('div', { className: 'flex items-center justify-between mb-4' },
+                            React.createElement('h2', { className: 'text-xl font-bold' }, `Today's Focus (${activeTasks.length}/10 active tasks)`),
+                            React.createElement('div', { className: 'text-sm text-gray-500' }, 
+                                new Date().toLocaleDateString('en-US', { 
+                                    weekday: 'long', 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                })
+                            )
+                        ),
+
+                        activeTasks.length >= 10 && React.createElement('div', { className: 'bg-yellow-50 border border-yellow-200 p-3 rounded-lg mb-4' },
+                            React.createElement('p', { className: 'text-yellow-800 text-sm' }, '📋 Daily limit reached! Focus on completing tasks before adding more.')
+                        ),
+                        
+                        dailyTasks.length === 0 ? 
+                            React.createElement('div', { className: 'text-center py-8' },
+                                React.createElement('p', { className: 'text-gray-500 mb-4' }, 'No tasks selected for today.'),
+                                React.createElement('button', {
+                                    onClick: () => setActiveView('capture'),
+                                    className: 'bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600'
+                                }, 'Add Tasks from Capture')
+                            ) :
+                            React.createElement('div', { className: 'space-y-6' },
+                                completedTasks.length > 0 && React.createElement('div', { className: 'bg-green-50 border border-green-200 p-4 rounded-lg' },
+                                    React.createElement('h3', { className: 'font-semibold text-green-800 mb-2' }, `✅ Completed Today (${completedTasks.length})`),
+                                    React.createElement('div', { className: 'space-y-2' },
+                                        completedTasks.map(task => 
+                                            React.createElement(TaskItem, { key: task.id, task, fromDaily: true })
+                                        )
+                                    )
+                                ),
+                                
+                                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6' },
+                                    Object.entries(tasksByCategory).map(([categoryKey, categoryTasks]) => {
+                                        const activeCategoryTasks = categoryTasks.filter(task => !task.completed);
+                                        if (activeCategoryTasks.length === 0) return null;
+                                        
+                                        return React.createElement('div', { key: categoryKey, className: 'space-y-3' },
+                                            React.createElement('h3', { className: 'font-semibold flex items-center gap-2' },
+                                                React.createElement('span', { className: `w-3 h-3 rounded-full ${categories[categoryKey].color}` }),
+                                                `${categories[categoryKey].name} (${activeCategoryTasks.length})`
+                                            ),
+                                            activeCategoryTasks.map(task => 
+                                                React.createElement(TaskItem, { key: task.id, task, fromDaily: true })
+                                            )
+                                        );
+                                    })
+                                )
+                            )
+                    )
+                );
+            };
+
+            return React.createElement('div', { className: 'min-h-screen bg-gray-100' },
+                React.createElement('div', { className: 'max-w-6xl mx-auto p-4' },
+                    React.createElement('header', { className: 'bg-white p-6 rounded-lg shadow-lg mb-6' },
+                        React.createElement('h1', { className: 'text-2xl font-bold text-gray-800 mb-4' }, 'Multi-Business Task Manager'),
+                        React.createElement('nav', { className: 'flex gap-4' },
+                            React.createElement('button', {
+                                onClick: () => setActiveView('capture'),
+                                className: `flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                                    activeView === 'capture' 
+                                        ? 'bg-blue-500 text-white' 
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`
+                            }, React.createElement(List, { size: 20 }), 'Capture & Organize'),
+                            React.createElement('button', {
+                                onClick: () => setActiveView('daily'),
+                                className: `flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                                    activeView === 'daily' 
+                                        ? 'bg-blue-500 text-white' 
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`
+                            }, React.createElement(Target, { size: 20 }), 'Daily Focus')
+                        )
+                    ),
+
+                    activeView === 'capture' ? React.createElement(CaptureView) : React.createElement(DailyView)
+                )
+            );
+        };
+
+        ReactDOM.render(React.createElement(TaskManager), document.getElementById('root'));
+    </script>
+</body>
+</html>
