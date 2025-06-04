@@ -318,7 +318,7 @@
                 <button class="nav-btn active" onclick="showView('capture')" id="capture-btn">📝 Capture & Organize</button>
                 <button class="nav-btn" onclick="showView('daily')" id="daily-btn">🎯 Daily Focus</button>
                 <button class="nav-btn" onclick="showView('completed')" id="completed-btn">📊 Completed Tasks</button>
-                <button class="nav-btn" onclick="showView('sms')" id="sms-btn">📱 SMS Setup</button>
+                <button class="nav-btn" onclick="showView('email')" id="email-btn">📧 Email Setup</button>
                 <button class="nav-btn" onclick="exportTasks()" title="Download backup">💾 Download Backup</button>
             </div>
         </div>
@@ -431,7 +431,7 @@
             </div>
         </div>
 
-        <div id="sms-view" class="hidden">
+        <div id="email-view" class="hidden">
             <div class="card">
                 <h2 class="font-bold mb-4">📱 Email & SMS Task Creation</h2>
                 
@@ -655,12 +655,12 @@
             document.getElementById('capture-view').className = view === 'capture' ? '' : 'hidden';
             document.getElementById('daily-view').className = view === 'daily' ? '' : 'hidden';
             document.getElementById('completed-view').className = view === 'completed' ? '' : 'hidden';
-            document.getElementById('sms-view').className = view === 'sms' ? '' : 'hidden';
+            document.getElementById('email-view').className = view === 'email' ? '' : 'hidden';
             
             document.getElementById('capture-btn').className = view === 'capture' ? 'nav-btn active' : 'nav-btn';
             document.getElementById('daily-btn').className = view === 'daily' ? 'nav-btn active' : 'nav-btn';
             document.getElementById('completed-btn').className = view === 'completed' ? 'nav-btn active' : 'nav-btn';
-            document.getElementById('sms-btn').className = view === 'sms' ? 'nav-btn active' : 'nav-btn';
+            document.getElementById('email-btn').className = view === 'email' ? 'nav-btn active' : 'nav-btn';
             
             if (view === 'daily') {
                 updateDailyView();
@@ -1768,33 +1768,69 @@
 
         // Gmail Integration Functions
         function connectGmail() {
-            // Note: This is a simplified demonstration
-            // In a real implementation, you would use Google's OAuth 2.0 flow
-            
-            const clientId = 'YOUR_GOOGLE_CLIENT_ID'; // Same as your existing one
+            // Real Gmail integration using Google's OAuth 2.0
+            const clientId = '702434826627-h2kpu9a5nhl9946odoogcqb44p0heq6t.apps.googleusercontent.com'; // Your existing Client ID
             const scope = 'https://www.googleapis.com/auth/gmail.readonly';
             const redirectUri = window.location.origin + window.location.pathname;
             
-            // For demo purposes, we'll simulate the connection
-            if (confirm('🔐 Gmail Integration Demo\n\nThis would normally redirect to Google for authorization.\n\nFor demonstration, click OK to simulate a successful connection.')) {
-                simulateGmailConnection();
+            // Check if gapi is loaded
+            if (typeof gapi === 'undefined') {
+                loadGoogleAPI().then(() => {
+                    initiateGmailAuth();
+                });
+            } else {
+                initiateGmailAuth();
             }
         }
 
-        function simulateGmailConnection() {
-            gmailConnected = true;
-            gmailAccessToken = 'demo_token_' + Date.now();
+        function loadGoogleAPI() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://apis.google.com/js/api.js';
+                script.onload = () => {
+                    gapi.load('auth2', resolve);
+                };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        function initiateGmailAuth() {
+            const clientId = '702434826627-h2kpu9a5nhl9946odoogcqb44p0heq6t.apps.googleusercontent.com';
             
-            updateGmailStatus();
-            
-            // Show success notification
+            gapi.load('auth2', () => {
+                const authInstance = gapi.auth2.init({
+                    client_id: clientId,
+                    scope: 'https://www.googleapis.com/auth/gmail.readonly'
+                });
+
+                authInstance.signIn().then((googleUser) => {
+                    const accessToken = googleUser.getAuthResponse().access_token;
+                    
+                    gmailConnected = true;
+                    gmailAccessToken = accessToken;
+                    
+                    updateGmailStatus();
+                    saveGmailSettings();
+                    
+                    // Show success notification
+                    showNotification('📧 Gmail connected successfully!', 'success');
+                    
+                }).catch((error) => {
+                    console.error('Gmail authentication failed:', error);
+                    showNotification('❌ Gmail connection failed. Please try again.', 'error');
+                });
+            });
+        }
+
+        function showNotification(message, type = 'success') {
             const notification = document.createElement('div');
-            notification.innerHTML = '📧 Gmail connected successfully! (Demo Mode)';
+            notification.innerHTML = message;
             notification.style.cssText = `
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: #10b981;
+                background: ${type === 'success' ? '#10b981' : '#ef4444'};
                 color: white;
                 padding: 0.75rem 1rem;
                 border-radius: 0.5rem;
@@ -1805,10 +1841,10 @@
             document.body.appendChild(notification);
             
             setTimeout(() => {
-                document.body.removeChild(notification);
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
             }, 3000);
-            
-            saveGmailSettings();
         }
 
         function disconnectGmail() {
@@ -1833,7 +1869,7 @@
                 statusDiv.style.borderColor = '#10b981';
                 statusDiv.style.color = '#065f46';
                 statusIcon.textContent = '✅';
-                statusText.textContent = 'Connected to Gmail (Demo Mode)';
+                statusText.textContent = 'Connected to Gmail';
                 connectBtn.style.display = 'none';
                 disconnectBtn.style.display = 'inline-block';
                 importBtn.disabled = false;
@@ -1891,7 +1927,7 @@
         }
 
         function importGmailTasks() {
-            if (!gmailConnected) {
+            if (!gmailConnected || !gmailAccessToken) {
                 alert('Please connect to Gmail first!');
                 return;
             }
@@ -1904,15 +1940,154 @@
             importBtn.innerHTML = '🔄 Importing...';
             importBtn.disabled = true;
             
-            // Simulate Gmail API call with demo data
-            setTimeout(() => {
-                const demoEmails = generateDemoEmails(timeframe);
-                processDemoEmails(demoEmails);
+            // Calculate date range
+            const sinceDate = new Date(Date.now() - timeframe * 24 * 60 * 60 * 1000);
+            const query = buildGmailQuery(sinceDate);
+            
+            // Use real Gmail API
+            fetchGmailMessages(query)
+                .then(emails => {
+                    if (emails.length === 0) {
+                        showNotification('📭 No emails found with your keyword filters in the selected timeframe.', 'info');
+                    } else {
+                        processRealEmails(emails);
+                    }
+                })
+                .catch(error => {
+                    console.error('Gmail API error:', error);
+                    showNotification('❌ Failed to fetch emails. Please try again.', 'error');
+                    
+                    // Fallback to demo if real API fails
+                    if (confirm('Gmail API unavailable. Would you like to see a demo with sample data?')) {
+                        const demoEmails = generateDemoEmails(timeframe);
+                        processDemoEmails(demoEmails);
+                    }
+                })
+                .finally(() => {
+                    // Restore button
+                    importBtn.innerHTML = originalText;
+                    importBtn.disabled = false;
+                });
+        }
+
+        function buildGmailQuery(sinceDate) {
+            // Build Gmail search query with keyword filters and date
+            const keywords = emailKeywords.map(keyword => `subject:${keyword}`).join(' OR ');
+            const dateString = sinceDate.toISOString().split('T')[0].replace(/-/g, '/');
+            
+            return `(${keywords}) after:${dateString}`;
+        }
+
+        async function fetchGmailMessages(query) {
+            try {
+                // First, search for message IDs
+                const searchResponse = await fetch(
+                    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${gmailAccessToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                if (!searchResponse.ok) {
+                    throw new Error(`Gmail API error: ${searchResponse.status}`);
+                }
+
+                const searchData = await searchResponse.json();
                 
-                // Restore button
-                importBtn.innerHTML = originalText;
-                importBtn.disabled = false;
-            }, 1500);
+                if (!searchData.messages || searchData.messages.length === 0) {
+                    return [];
+                }
+
+                // Fetch full message details for each message
+                const emails = await Promise.all(
+                    searchData.messages.slice(0, 20).map(async (message) => {
+                        const messageResponse = await fetch(
+                            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+                            {
+                                headers: {
+                                    'Authorization': `Bearer ${gmailAccessToken}`,
+                                    'Content-Type': 'application/json'
+                                }
+                            }
+                        );
+
+                        if (!messageResponse.ok) {
+                            console.warn(`Failed to fetch message ${message.id}`);
+                            return null;
+                        }
+
+                        const messageData = await messageResponse.json();
+                        return parseGmailMessage(messageData);
+                    })
+                );
+
+                return emails.filter(email => email !== null);
+                
+            } catch (error) {
+                console.error('Error fetching Gmail messages:', error);
+                throw error;
+            }
+        }
+
+        function parseGmailMessage(messageData) {
+            try {
+                const headers = messageData.payload.headers;
+                const subject = headers.find(h => h.name === 'Subject')?.value || '';
+                const date = new Date(parseInt(messageData.internalDate));
+                
+                // Extract email body
+                let body = '';
+                if (messageData.payload.body && messageData.payload.body.data) {
+                    body = atob(messageData.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                } else if (messageData.payload.parts) {
+                    // Handle multipart messages
+                    const textPart = messageData.payload.parts.find(part => 
+                        part.mimeType === 'text/plain' && part.body.data
+                    );
+                    if (textPart) {
+                        body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                    }
+                }
+
+                return {
+                    subject: subject,
+                    body: body,
+                    date: date
+                };
+            } catch (error) {
+                console.error('Error parsing Gmail message:', error);
+                return null;
+            }
+        }
+
+        function processRealEmails(emails) {
+            const results = {
+                tasksCreated: [],
+                emailsProcessed: emails.length,
+                emailsSkipped: 0
+            };
+            
+            emails.forEach(email => {
+                const emailResults = parseEmailForTasks(email.body);
+                
+                emailResults.tasksCreated.forEach(taskResult => {
+                    // Add email metadata
+                    taskResult.task.emailSubject = email.subject;
+                    taskResult.task.emailDate = email.date;
+                    taskResult.task.createdViaEmail = true;
+                    
+                    results.tasksCreated.push(taskResult);
+                });
+            });
+            
+            displayEmailImportResults(results);
+            
+            if (results.tasksCreated.length > 0) {
+                showNotification(`✅ Created ${results.tasksCreated.length} tasks from ${results.emailsProcessed} emails!`, 'success');
+            }
         }
 
         function generateDemoEmails(timeframe) {
