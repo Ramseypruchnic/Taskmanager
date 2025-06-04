@@ -1009,12 +1009,88 @@
             }
         }
 
-        function removeFromDaily(id) {
-            if (confirm('Remove this task from today\'s focus? It will return to your main task list.')) {
-                dailyTasks = dailyTasks.filter(task => task.id !== id);
+        function duplicateTask(id) {
+            const taskToDuplicate = tasks.find(task => task.id === id) || dailyTasks.find(task => task.id === id);
+            
+            if (taskToDuplicate) {
+                const duplicatedTask = {
+                    id: Date.now(),
+                    text: taskToDuplicate.text + ' (Copy)',
+                    category: taskToDuplicate.category,
+                    priority: taskToDuplicate.priority,
+                    completed: false, // Always create duplicates as incomplete
+                    createdAt: new Date()
+                };
+                
+                // Add to main tasks list
+                tasks.unshift(duplicatedTask);
+                
+                saveToStorage();
+                renderTasks();
+                
+                // Show feedback
+                const notification = document.createElement('div');
+                notification.innerHTML = '📋 Task duplicated successfully!';
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #10b981;
+                    color: white;
+                    padding: 0.75rem 1rem;
+                    border-radius: 0.5rem;
+                    z-index: 1000;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    font-weight: 500;
+                `;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 2000);
+            }
+        }
+
+        function uncompleteTask(id) {
+            const dailyTask = dailyTasks.find(task => task.id === id);
+            if (dailyTask && dailyTask.completed) {
+                dailyTask.completed = false;
+                dailyTask.completedDate = null;
+                
+                // Also mark the main task as incomplete
+                const mainTask = tasks.find(task => task.id === id);
+                if (mainTask) {
+                    mainTask.completed = false;
+                }
+                
+                // Remove from completed history
+                completedTasksHistory = completedTasksHistory.filter(ct => ct.id !== id);
+                
                 saveToStorage();
                 renderDailyTasks();
+                renderTasks();
                 updateDailyView();
+                
+                // Show feedback
+                const notification = document.createElement('div');
+                notification.innerHTML = '🔄 Task marked as incomplete!';
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #f59e0b;
+                    color: white;
+                    padding: 0.75rem 1rem;
+                    border-radius: 0.5rem;
+                    z-index: 1000;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    font-weight: 500;
+                `;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 2000);
             }
         }
 
@@ -1196,9 +1272,17 @@
                     </div>
                     <div class="task-actions">
                         ${showAddButton ? `
-                            <button class="icon-btn primary ${!canAddToDaily ? 'hidden' : ''}" onclick="addToDaily(${task.id})" title="Add to daily tasks">
-                                ➕
-                            </button>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button class="icon-btn primary ${!canAddToDaily ? 'hidden' : ''}" onclick="addToDaily(${task.id})" title="Add to daily tasks">
+                                    ➕
+                                </button>
+                                <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Duplicate task">
+                                    📋
+                                </button>
+                                <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete task">
+                                    🗑️
+                                </button>
+                            </div>
                         ` : ''}
                         ${fromDaily ? `
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -1206,15 +1290,27 @@
                                     <button class="btn btn-sm btn-success" onclick="completeTask(${task.id})" title="Mark as complete">
                                         Task Complete
                                     </button>
-                                ` : ''}
+                                ` : `
+                                    <button class="btn btn-sm" onclick="uncompleteTask(${task.id})" title="Mark as incomplete" style="background: #f59e0b; color: white;">
+                                        Mark Incomplete
+                                    </button>
+                                `}
                                 <button class="btn btn-sm btn-secondary" onclick="removeFromDaily(${task.id})" title="Remove from daily focus">
                                     Remove Task
                                 </button>
+                                <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Duplicate task">
+                                    📋
+                                </button>
                             </div>
                         ` : `
-                            <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete task">
-                                🗑️
-                            </button>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Duplicate task">
+                                    📋
+                                </button>
+                                <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete task">
+                                    🗑️
+                                </button>
+                            </div>
                         `}
                     </div>
                 </div>
