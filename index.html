@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Business Task Manager</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -26,7 +28,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
             margin-bottom: 1.5rem; 
         }
-        .nav { display: flex; gap: 1rem; margin-top: 1rem; }
+        .nav { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
         .nav-btn { 
             padding: 0.5rem 1rem; 
             border: none; 
@@ -34,10 +36,52 @@
             cursor: pointer; 
             font-weight: 500;
             transition: all 0.2s;
+            font-size: 0.875rem;
         }
         .nav-btn.active { background: #3b82f6; color: white; }
         .nav-btn:not(.active) { background: #e5e7eb; color: #374151; }
         .nav-btn:hover:not(.active) { background: #d1d5db; }
+        
+        .user-info { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem; 
+            font-size: 0.875rem;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+        .user-avatar { 
+            width: 32px; 
+            height: 32px; 
+            border-radius: 50%; 
+        }
+        .sync-status { 
+            padding: 0.25rem 0.5rem; 
+            border-radius: 0.25rem; 
+            font-size: 0.75rem; 
+            font-weight: 500;
+        }
+        .sync-success { background: #f0fdf4; color: #065f46; }
+        .sync-pending { background: #fef3c7; color: #92400e; }
+        .sync-error { background: #fef2f2; color: #991b1b; }
+        .sync-offline { background: #f3f4f6; color: #6b7280; }
+        
+        .login-container { 
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .login-card { 
+            background: white; 
+            border-radius: 0.5rem; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            padding: 2rem; 
+            max-width: 400px; 
+            width: 100%;
+            text-align: center;
+        }
         
         .input-group { margin-bottom: 1rem; }
         .input-group label { display: block; font-weight: 500; margin-bottom: 0.5rem; color: #374151; }
@@ -65,6 +109,7 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
+            font-size: 0.875rem;
         }
         .btn-primary { background: #3b82f6; color: white; }
         .btn-primary:hover { background: #2563eb; }
@@ -72,7 +117,9 @@
         .btn-secondary:hover { background: #4b5563; }
         .btn-danger { background: #ef4444; color: white; }
         .btn-danger:hover { background: #dc2626; }
-        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.75rem; }
         
         .task-item { 
             border: 2px solid #e5e7eb; 
@@ -177,6 +224,7 @@
         }
         .alert-warning { background: #fefce8; border-color: #f59e0b; color: #92400e; }
         .alert-success { background: #f0fdf4; border-color: #10b981; color: #065f46; }
+        .alert-info { background: #eff6ff; border-color: #3b82f6; color: #1e40af; }
         
         .text-center { text-align: center; }
         .text-gray { color: #6b7280; }
@@ -192,17 +240,56 @@
             .nav { flex-wrap: wrap; }
             .radio-group { flex-direction: column; gap: 0.5rem; }
             .grid-2 { grid-template-columns: 1fr; }
+            .user-info { flex-wrap: wrap; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div id="login-screen" class="login-container">
+        <div class="login-card">
+            <h1 class="text-lg font-bold mb-4">Multi-Business Task Manager</h1>
+            <p class="text-gray mb-4">Sign in with Google to sync your tasks across all devices</p>
+            
+            <div id="google-signin-btn" class="mb-4"></div>
+            
+            <div style="margin: 1rem 0; display: flex; align-items: center; gap: 1rem;">
+                <hr style="flex: 1; border: none; border-top: 1px solid #e5e7eb;">
+                <span style="color: #6b7280; font-size: 0.875rem;">or</span>
+                <hr style="flex: 1; border: none; border-top: 1px solid #e5e7eb;">
+            </div>
+            
+            <button class="btn btn-secondary" onclick="useOfflineMode()">
+                📱 Use Offline Mode
+            </button>
+            
+            <p style="margin-top: 1rem; font-size: 0.875rem; color: #6b7280;">
+                Offline mode saves tasks only on this device.<br>
+                Sign in with Google to sync across all your devices.
+            </p>
+        </div>
+    </div>
+
+    <div id="main-app" class="container hidden">
         <div class="header">
-            <h1 class="text-lg font-bold">Multi-Business Task Manager</h1>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                <h1 class="text-lg font-bold">Multi-Business Task Manager</h1>
+                <div class="user-info" id="user-info">
+                    <img id="user-avatar" class="user-avatar" src="" alt="">
+                    <span id="user-name"></span>
+                    <span class="sync-status sync-offline" id="sync-status">📱 Offline</span>
+                    <button class="btn btn-sm btn-secondary" onclick="signOut()">Sign Out</button>
+                </div>
+            </div>
             <div class="nav">
                 <button class="nav-btn active" onclick="showView('capture')" id="capture-btn">📝 Capture & Organize</button>
                 <button class="nav-btn" onclick="showView('daily')" id="daily-btn">🎯 Daily Focus</button>
+                <button class="nav-btn" onclick="syncNow()" id="sync-btn" title="Sync with Google Drive">☁️ Sync Now</button>
+                <button class="nav-btn" onclick="exportTasks()" title="Download backup">💾 Download Backup</button>
             </div>
+        </div>
+        
+        <div id="sync-alert" class="alert alert-info hidden">
+            <strong>📡 Syncing with Google Drive...</strong> Your tasks are being saved to the cloud.
         </div>
         
         <div id="capture-view">
@@ -262,7 +349,7 @@
         
         <div id="daily-view" class="hidden">
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
                     <h2 class="font-bold">Today's Focus (<span id="daily-count">0</span>/10 active tasks)</h2>
                     <div class="text-gray" id="current-date"></div>
                 </div>
@@ -293,26 +380,378 @@
     </div>
 
     <script>
+        // Configuration - Your actual Google API credentials
+        const CLIENT_ID = '702434826627-h2kpu9a5nhl9946odoogcqb44p0heq6t.apps.googleusercontent.com';
+        const API_KEY = 'AIzaSyDjlEytdQToEPzfhmCl_rsCVn8yL00guzc';
+        const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
         // Global state
         let tasks = [];
         let dailyTasks = [];
         let currentView = 'capture';
-        let editingTaskId = null;
-        
+        let currentUser = null;
+        let isSignedIn = false;
+        let gapi = null;
+        let tokenClient = null;
+        let driveFileId = null;
+
         // Categories configuration
         const categories = {
             personal: { name: 'Personal', badge: 'badge-personal' },
             strategylabs: { name: 'Strategy Labs', badge: 'badge-strategylabs' },
             unomas: { name: 'Uno Mas', badge: 'badge-unomas' }
         };
-        
-        // Initialize app
+
+        // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
+            initializeGoogleAPI();
+        });
+
+        async function initializeGoogleAPI() {
+            try {
+                // Load Google API
+                await new Promise((resolve, reject) => {
+                    if (typeof window.gapi !== 'undefined') {
+                        resolve();
+                    } else {
+                        const script = document.createElement('script');
+                        script.src = 'https://apis.google.com/js/api.js';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    }
+                });
+
+                await window.gapi.load('client', initializeGapiClient);
+                
+                // Initialize Google Identity Services
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: handleAuthCallback,
+                });
+
+                // Render sign-in button
+                google.accounts.id.initialize({
+                    client_id: CLIENT_ID,
+                    callback: handleCredentialResponse
+                });
+
+                google.accounts.id.renderButton(
+                    document.getElementById('google-signin-btn'),
+                    { theme: 'outline', size: 'large', width: 250 }
+                );
+
+            } catch (error) {
+                console.error('Error initializing Google API:', error);
+                showOfflineMode();
+            }
+        }
+
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                apiKey: API_KEY,
+                discoveryDocs: [DISCOVERY_DOC],
+            });
+        }
+
+        function handleCredentialResponse(response) {
+            // Parse the JWT token
+            const userInfo = parseJwt(response.credential);
+            currentUser = {
+                id: userInfo.sub,
+                email: userInfo.email,
+                name: userInfo.name,
+                picture: userInfo.picture
+            };
+            
+            // Request additional permissions for Drive access
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        }
+
+        function handleAuthCallback(resp) {
+            if (resp.error !== undefined) {
+                console.error('Auth error:', resp.error);
+                return;
+            }
+            
+            isSignedIn = true;
+            showMainApp();
+            loadFromGoogleDrive();
+        }
+
+        function parseJwt(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        function useOfflineMode() {
+            currentUser = { offline: true, name: 'Offline User' };
+            isSignedIn = false;
+            showMainApp();
+            loadFromLocalStorage();
             updateCurrentDate();
             renderTasks();
             renderDailyTasks();
-        });
-        
+        }
+
+        function showOfflineMode() {
+            document.getElementById('google-signin-btn').innerHTML = 
+                '<p style="color: #ef4444; margin: 1rem 0;">Google Sign-in unavailable. Using offline mode.</p>';
+            useOfflineMode();
+        }
+
+        function showMainApp() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            
+            // Update user info
+            if (currentUser) {
+                document.getElementById('user-name').textContent = currentUser.name;
+                if (currentUser.picture) {
+                    document.getElementById('user-avatar').src = currentUser.picture;
+                    document.getElementById('user-avatar').style.display = 'block';
+                } else {
+                    document.getElementById('user-avatar').style.display = 'none';
+                }
+                
+                updateSyncStatus(currentUser.offline ? 'offline' : 'synced');
+            }
+            
+            updateCurrentDate();
+            renderTasks();
+            renderDailyTasks();
+        }
+
+        function signOut() {
+            if (confirm('Are you sure you want to sign out?')) {
+                currentUser = null;
+                isSignedIn = false;
+                driveFileId = null;
+                tasks = [];
+                dailyTasks = [];
+                
+                // Clear local storage
+                localStorage.clear();
+                
+                // Show login screen
+                document.getElementById('main-app').classList.add('hidden');
+                document.getElementById('login-screen').classList.remove('hidden');
+            }
+        }
+
+        // Google Drive Functions
+        async function saveToGoogleDrive() {
+            if (!isSignedIn) {
+                saveToLocalStorage();
+                return;
+            }
+
+            try {
+                updateSyncStatus('syncing');
+                
+                const data = {
+                    tasks: tasks,
+                    dailyTasks: dailyTasks,
+                    lastSync: new Date().toISOString(),
+                    version: '1.0'
+                };
+
+                const content = JSON.stringify(data, null, 2);
+                
+                if (driveFileId) {
+                    // Update existing file
+                    await gapi.client.drive.files.update({
+                        fileId: driveFileId,
+                        uploadType: 'media',
+                        body: content
+                    });
+                } else {
+                    // Create new file
+                    const fileMetadata = {
+                        name: 'task-manager-data.json',
+                        parents: ['appDataFolder']
+                    };
+                    
+                    const response = await gapi.client.drive.files.create({
+                        resource: fileMetadata,
+                        media: {
+                            mimeType: 'application/json',
+                            body: content
+                        },
+                        fields: 'id'
+                    });
+                    
+                    driveFileId = response.result.id;
+                }
+                
+                updateSyncStatus('synced');
+                
+            } catch (error) {
+                console.error('Error saving to Google Drive:', error);
+                updateSyncStatus('error');
+                // Fallback to local storage
+                saveToLocalStorage();
+            }
+        }
+
+        async function loadFromGoogleDrive() {
+            if (!isSignedIn) {
+                loadFromLocalStorage();
+                return;
+            }
+
+            try {
+                updateSyncStatus('syncing');
+                
+                // Search for existing file
+                const response = await gapi.client.drive.files.list({
+                    q: "name='task-manager-data.json' and parents in 'appDataFolder'",
+                    spaces: 'appDataFolder'
+                });
+
+                if (response.result.files.length > 0) {
+                    driveFileId = response.result.files[0].id;
+                    
+                    // Download file content
+                    const fileResponse = await gapi.client.drive.files.get({
+                        fileId: driveFileId,
+                        alt: 'media'
+                    });
+
+                    const data = JSON.parse(fileResponse.body);
+                    
+                    if (data.tasks) {
+                        tasks = data.tasks;
+                        // Convert date strings back to Date objects
+                        tasks.forEach(task => {
+                            if (task.createdAt) task.createdAt = new Date(task.createdAt);
+                        });
+                    }
+                    
+                    if (data.dailyTasks) {
+                        dailyTasks = data.dailyTasks;
+                        dailyTasks.forEach(task => {
+                            if (task.createdAt) task.createdAt = new Date(task.createdAt);
+                        });
+                    }
+                    
+                    // Check if it's a new day
+                    checkNewDay();
+                    
+                    updateSyncStatus('synced');
+                    renderTasks();
+                    renderDailyTasks();
+                } else {
+                    // No existing file, start fresh
+                    updateSyncStatus('synced');
+                }
+                
+            } catch (error) {
+                console.error('Error loading from Google Drive:', error);
+                updateSyncStatus('error');
+                // Fallback to local storage
+                loadFromLocalStorage();
+            }
+        }
+
+        async function syncNow() {
+            if (!isSignedIn) {
+                alert('Sign in with Google to sync your tasks to the cloud.');
+                return;
+            }
+            
+            await saveToGoogleDrive();
+        }
+
+        // Local Storage Functions (fallback)
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('taskManagerTasks', JSON.stringify(tasks));
+                localStorage.setItem('taskManagerDailyTasks', JSON.stringify(dailyTasks));
+                localStorage.setItem('taskManagerLastSave', new Date().toISOString());
+            } catch (error) {
+                console.warn('Could not save to localStorage:', error);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const savedTasks = localStorage.getItem('taskManagerTasks');
+                const savedDailyTasks = localStorage.getItem('taskManagerDailyTasks');
+                
+                if (savedTasks) {
+                    tasks = JSON.parse(savedTasks);
+                    tasks.forEach(task => {
+                        if (task.createdAt) task.createdAt = new Date(task.createdAt);
+                    });
+                }
+                
+                if (savedDailyTasks) {
+                    dailyTasks = JSON.parse(savedDailyTasks);
+                    dailyTasks.forEach(task => {
+                        if (task.createdAt) task.createdAt = new Date(task.createdAt);
+                    });
+                }
+                
+                checkNewDay();
+            } catch (error) {
+                console.warn('Could not load from localStorage:', error);
+                tasks = [];
+                dailyTasks = [];
+            }
+        }
+
+        function checkNewDay() {
+            const lastSave = localStorage.getItem('taskManagerLastSave');
+            if (lastSave) {
+                const lastSaveDate = new Date(lastSave);
+                const today = new Date();
+                
+                if (lastSaveDate.toDateString() !== today.toDateString()) {
+                    dailyTasks = [];
+                    if (isSignedIn) {
+                        saveToGoogleDrive();
+                    } else {
+                        saveToLocalStorage();
+                    }
+                }
+            }
+        }
+
+        function updateSyncStatus(status) {
+            const statusElement = document.getElementById('sync-status');
+            const syncAlert = document.getElementById('sync-alert');
+            
+            switch (status) {
+                case 'syncing':
+                    statusElement.className = 'sync-status sync-pending';
+                    statusElement.textContent = '🔄 Syncing...';
+                    syncAlert.classList.remove('hidden');
+                    break;
+                case 'synced':
+                    statusElement.className = 'sync-status sync-success';
+                    statusElement.textContent = '☁️ Synced';
+                    syncAlert.classList.add('hidden');
+                    break;
+                case 'error':
+                    statusElement.className = 'sync-status sync-error';
+                    statusElement.textContent = '⚠️ Sync Error';
+                    syncAlert.classList.add('hidden');
+                    break;
+                case 'offline':
+                    statusElement.className = 'sync-status sync-offline';
+                    statusElement.textContent = '📱 Offline';
+                    syncAlert.classList.add('hidden');
+                    break;
+            }
+        }
+
         function updateCurrentDate() {
             const now = new Date();
             const dateStr = now.toLocaleDateString('en-US', { 
@@ -323,7 +762,7 @@
             });
             document.getElementById('current-date').textContent = dateStr;
         }
-        
+
         function showView(view) {
             currentView = view;
             document.getElementById('capture-view').className = view === 'capture' ? '' : 'hidden';
@@ -336,14 +775,14 @@
                 updateDailyView();
             }
         }
-        
+
         function handleTaskInput(event) {
             if (event.key === 'Enter') {
                 addTask();
             }
         }
-        
-        function addTask() {
+
+        async function addTask() {
             const input = document.getElementById('task-input');
             const text = input.value.trim();
             
@@ -363,17 +802,31 @@
             
             tasks.unshift(task);
             input.value = '';
+            
+            if (isSignedIn) {
+                await saveToGoogleDrive();
+            } else {
+                saveToLocalStorage();
+            }
+            
             renderTasks();
         }
-        
-        function deleteTask(id) {
+
+        async function deleteTask(id) {
             tasks = tasks.filter(task => task.id !== id);
             dailyTasks = dailyTasks.filter(task => task.id !== id);
+            
+            if (isSignedIn) {
+                await saveToGoogleDrive();
+            } else {
+                saveToLocalStorage();
+            }
+            
             renderTasks();
             renderDailyTasks();
         }
-        
-        function toggleTask(id) {
+
+        async function toggleTask(id) {
             const task = tasks.find(task => task.id === id);
             if (task) {
                 task.completed = !task.completed;
@@ -386,25 +839,45 @@
                 renderDailyTasks();
                 checkDailyLimit();
             }
+            
+            if (isSignedIn) {
+                await saveToGoogleDrive();
+            } else {
+                saveToLocalStorage();
+            }
         }
-        
-        function addToDaily(id) {
+
+        async function addToDaily(id) {
             const task = tasks.find(task => task.id === id);
             const activeDailyTasks = dailyTasks.filter(t => !t.completed);
             
             if (task && activeDailyTasks.length < 10 && !dailyTasks.find(t => t.id === id)) {
                 dailyTasks.push({...task});
+                
+                if (isSignedIn) {
+                    await saveToGoogleDrive();
+                } else {
+                    saveToLocalStorage();
+                }
+                
                 renderDailyTasks();
                 updateDailyView();
             }
         }
-        
-        function removeFromDaily(id) {
+
+        async function removeFromDaily(id) {
             dailyTasks = dailyTasks.filter(task => task.id !== id);
+            
+            if (isSignedIn) {
+                await saveToGoogleDrive();
+            } else {
+                saveToLocalStorage();
+            }
+            
             renderDailyTasks();
             updateDailyView();
         }
-        
+
         function renderTasks() {
             const container = document.getElementById('tasks-container');
             const totalTasks = tasks.length;
@@ -443,7 +916,7 @@
             
             container.innerHTML = html;
         }
-        
+
         function renderDailyTasks() {
             const container = document.getElementById('daily-tasks-container');
             const activeTasks = dailyTasks.filter(task => !task.completed);
@@ -497,7 +970,7 @@
             
             container.innerHTML = html;
         }
-        
+
         function renderTaskItem(task, showAddButton = false, fromDaily = false) {
             const activeDailyCount = dailyTasks.filter(t => !t.completed).length;
             const canAddToDaily = activeDailyCount < 10 && !dailyTasks.find(t => t.id === task.id);
@@ -533,7 +1006,7 @@
                 </div>
             `;
         }
-        
+
         function getCategoryColor(category) {
             const colors = {
                 personal: '#3b82f6',
@@ -542,7 +1015,7 @@
             };
             return colors[category] || '#6b7280';
         }
-        
+
         function toggleCategory(categoryKey) {
             const content = document.getElementById(`content-${categoryKey}`);
             const chevron = document.getElementById(`chevron-${categoryKey}`);
@@ -555,7 +1028,7 @@
                 chevron.textContent = '▶';
             }
         }
-        
+
         function updateDailyView() {
             const activeTasks = dailyTasks.filter(task => !task.completed);
             const warning = document.getElementById('daily-limit-warning');
@@ -568,7 +1041,7 @@
             
             renderDailyTasks();
         }
-        
+
         function checkDailyLimit() {
             const completedToday = dailyTasks.filter(task => task.completed).length;
             const activeTasks = dailyTasks.filter(task => !task.completed);
@@ -577,7 +1050,7 @@
                 showCompletionModal(completedToday, 10 - activeTasks.length);
             }
         }
-        
+
         function showCompletionModal(completed, available) {
             const modal = document.getElementById('completion-modal');
             const message = document.getElementById('completion-message');
@@ -585,15 +1058,42 @@
             message.textContent = `Great job! You completed ${completed} task(s) today. You can now add ${available} more task(s) to your daily focus.`;
             modal.classList.add('show');
         }
-        
+
         function hideCompletionModal() {
             document.getElementById('completion-modal').classList.remove('show');
         }
-        
-        function clearCompleted() {
+
+        async function clearCompleted() {
             dailyTasks = dailyTasks.filter(task => !task.completed);
+            
+            if (isSignedIn) {
+                await saveToGoogleDrive();
+            } else {
+                saveToLocalStorage();
+            }
+            
             hideCompletionModal();
             updateDailyView();
+        }
+
+        function exportTasks() {
+            const data = {
+                tasks: tasks,
+                dailyTasks: dailyTasks,
+                exportDate: new Date().toISOString(),
+                user: currentUser ? currentUser.email : 'offline'
+            };
+            
+            const dataStr = JSON.stringify(data, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `task-manager-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
