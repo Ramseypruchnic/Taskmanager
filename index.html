@@ -217,14 +217,8 @@
         
         .task-actions {
             display: flex;
-            flex-direction: column;
             gap: 0.5rem;
-            align-items: flex-end;
-            min-width: 120px;
-        }
-        .task-actions > div {
-            display: flex;
-            gap: 0.5rem;
+            align-items: center;
             flex-wrap: wrap;
         }
         .icon-btn { 
@@ -460,6 +454,7 @@
         let dailyTasks = [];
         let completedTasksHistory = []; // New: track completed tasks with dates
         let currentView = 'capture';
+        let editingTaskId = null; // Track which task is being edited
         
         // Customizable categories and priorities
         let categories = {
@@ -493,6 +488,8 @@
             window.rolloverAllTasks = rolloverAllTasks;
             window.rolloverSingleTask = rolloverSingleTask;
             window.completeTask = completeTask;
+            window.uncompleteTask = uncompleteTask;
+            window.duplicateTask = duplicateTask;
             window.toggleCompletedDate = toggleCompletedDate;
         });
 
@@ -1051,6 +1048,15 @@
             }
         }
 
+        function removeFromDaily(id) {
+            if (confirm('Remove this task from today\'s focus? It will return to your main task list.')) {
+                dailyTasks = dailyTasks.filter(task => task.id !== id);
+                saveToStorage();
+                renderDailyTasks();
+                updateDailyView();
+            }
+        }
+
         function uncompleteTask(id) {
             const dailyTask = dailyTasks.find(task => task.id === id);
             if (dailyTask && dailyTask.completed) {
@@ -1257,6 +1263,7 @@
         function renderTaskItem(task, showAddButton = false, fromDaily = false) {
             const activeDailyCount = dailyTasks.filter(t => !t.completed).length;
             const canAddToDaily = activeDailyCount < 10 && !dailyTasks.find(t => t.id === task.id);
+            const isEditing = editingTaskId === task.id;
             
             return `
                 <div class="task-item ${task.category}">
@@ -1264,55 +1271,70 @@
                         ${task.completed ? '✓' : ''}
                     </div>
                     <div class="task-content">
-                        <div class="task-text ${task.completed ? 'completed' : ''}">${task.text}</div>
-                        <div class="task-meta">
-                            <span class="badge ${categories[task.category] ? categories[task.category].badge : 'badge-personal'}">${categories[task.category] ? categories[task.category].name : 'Personal'}</span>
-                            <span class="badge badge-${task.priority}">${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>
-                        </div>
-                    </div>
-                    <div class="task-actions">
-                        ${showAddButton ? `
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <button class="icon-btn primary ${!canAddToDaily ? 'hidden' : ''}" onclick="addToDaily(${task.id})" title="Add to daily tasks">
-                                    ➕
-                                </button>
-                                <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Duplicate task">
-                                    📋
-                                </button>
-                                <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete task">
-                                    🗑️
-                                </button>
-                            </div>
-                        ` : ''}
-                        ${fromDaily ? `
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                ${!task.completed ? `
-                                    <button class="btn btn-sm btn-success" onclick="completeTask(${task.id})" title="Mark as complete">
-                                        Task Complete
+                        ${isEditing ? `
+                            <div class="edit-task-form">
+                                <input type="text" id="edit-text-${task.id}" value="${task.text}" class="text-input" style="margin-bottom: 0.5rem;" placeholder="Task name...">
+                                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                                    <select id="edit-category-${task.id}" class="add-item-input" style="flex: 1; min-width: 120px;">
+                                        ${Object.entries(categories).map(([key, cat]) => 
+                                            `<option value="${key}" ${task.category === key ? 'selected' : ''}>${cat.name}</option>`
+                                        ).join('')}
+                                    </select>
+                                    <select id="edit-priority-${task.id}" class="add-item-input" style="flex: 1; min-width: 100px;">
+                                        ${priorities.map(priority => 
+                                            `<option value="${priority}" ${task.priority === priority ? 'selected' : ''}>${priority.charAt(0).toUpperCase() + priority.slice(1)}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-sm btn-success" onclick="saveTaskEdit(${task.id})" title="Save changes">
+                                        💾 Save
                                     </button>
-                                ` : `
-                                    <button class="btn btn-sm" onclick="uncompleteTask(${task.id})" title="Mark as incomplete" style="background: #f59e0b; color: white;">
-                                        Mark Incomplete
+                                    <button class="btn btn-sm btn-secondary" onclick="cancelTaskEdit()" title="Cancel editing">
+                                        ❌ Cancel
                                     </button>
-                                `}
-                                <button class="btn btn-sm btn-secondary" onclick="removeFromDaily(${task.id})" title="Remove from daily focus">
-                                    Remove Task
-                                </button>
-                                <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Duplicate task">
-                                    📋
-                                </button>
+                                </div>
                             </div>
                         ` : `
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Duplicate task">
-                                    📋
-                                </button>
-                                <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete task">
-                                    🗑️
-                                </button>
+                            <div class="task-text ${task.completed ? 'completed' : ''}">${task.text}</div>
+                            <div class="task-meta">
+                                <span class="badge ${categories[task.category] ? categories[task.category].badge : 'badge-personal'}">${categories[task.category] ? categories[task.category].name : 'Personal'}</span>
+                                <span class="badge badge-${task.priority}">${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>
                             </div>
                         `}
                     </div>
+                    ${!isEditing ? `
+                        <div class="task-actions">
+                            ${showAddButton && canAddToDaily ? `
+                                <button class="icon-btn primary" onclick="addToDaily(${task.id})" title="Add to daily focus">
+                                    ➕
+                                </button>
+                            ` : ''}
+                            ${fromDaily ? `
+                                ${!task.completed ? `
+                                    <button class="btn btn-sm btn-success" onclick="completeTask(${task.id})" title="Mark task as complete">
+                                        ✅ Complete
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-sm" onclick="uncompleteTask(${task.id})" title="Mark task as incomplete" style="background: #f59e0b; color: white;">
+                                        🔄 Incomplete
+                                    </button>
+                                `}
+                                <button class="btn btn-sm btn-secondary" onclick="removeFromDaily(${task.id})" title="Remove from daily focus list">
+                                    📤 Remove
+                                </button>
+                            ` : ''}
+                            <button class="icon-btn" onclick="editTask(${task.id})" title="Edit this task">
+                                ✏️
+                            </button>
+                            <button class="icon-btn" onclick="duplicateTask(${task.id})" title="Create a copy of this task">
+                                📋
+                            </button>
+                            <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete this task permanently">
+                                🗑️
+                            </button>
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }
