@@ -215,7 +215,18 @@
         .badge-medium { background: #fefce8; color: #a16207; }
         .badge-low { background: #f3f4f6; color: #374151; }
         
-        .task-actions { display: flex; gap: 0.25rem; }
+        .task-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: flex-end;
+            min-width: 120px;
+        }
+        .task-actions > div {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
         .icon-btn { 
             padding: 0.25rem; 
             border: none; 
@@ -304,6 +315,7 @@
             <div class="nav">
                 <button class="nav-btn active" onclick="showView('capture')" id="capture-btn">📝 Capture & Organize</button>
                 <button class="nav-btn" onclick="showView('daily')" id="daily-btn">🎯 Daily Focus</button>
+                <button class="nav-btn" onclick="showView('completed')" id="completed-btn">📊 Completed Tasks</button>
                 <button class="nav-btn" onclick="exportTasks()" title="Download backup">💾 Download Backup</button>
             </div>
         </div>
@@ -388,11 +400,30 @@
                     📋 You have already reached your daily focus task limit (10 tasks)
                 </div>
                 
+                <div id="rollover-section" class="hidden">
+                    <div class="alert" style="background: #fef3c7; border-color: #f59e0b; color: #92400e; margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h4 class="font-bold">📅 Uncompleted Tasks from Previous Days</h4>
+                            <button class="btn btn-sm btn-primary" onclick="rolloverAllTasks()">Roll Over All</button>
+                        </div>
+                        <div id="rollover-tasks-list"></div>
+                    </div>
+                </div>
+                
                 <div id="daily-tasks-container">
                     <div class="text-center py-8">
                         <p class="text-gray mb-4">No tasks selected for today.</p>
                         <button class="btn btn-primary" onclick="showAddTasksModal()">Add Tasks</button>
                     </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="completed-view" class="hidden">
+            <div class="card">
+                <h2 class="font-bold mb-4">📊 Completed Tasks History</h2>
+                <div id="completed-tasks-container">
+                    <p class="text-center text-gray py-8">No completed tasks yet.</p>
                 </div>
             </div>
         </div>
@@ -427,6 +458,7 @@
         // Global state
         let tasks = [];
         let dailyTasks = [];
+        let completedTasksHistory = []; // New: track completed tasks with dates
         let currentView = 'capture';
         
         // Customizable categories and priorities
@@ -457,6 +489,11 @@
             window.hideAddTasksModal = hideAddTasksModal;
             window.addSelectedTasks = addSelectedTasks;
             window.toggleAddTasksCategory = toggleAddTasksCategory;
+            window.checkForRolloverTasks = checkForRolloverTasks;
+            window.rolloverAllTasks = rolloverAllTasks;
+            window.rolloverSingleTask = rolloverSingleTask;
+            window.completeTask = completeTask;
+            window.toggleCompletedDate = toggleCompletedDate;
         });
 
         function updateCurrentDate() {
@@ -477,12 +514,17 @@
             currentView = view;
             document.getElementById('capture-view').className = view === 'capture' ? '' : 'hidden';
             document.getElementById('daily-view').className = view === 'daily' ? '' : 'hidden';
+            document.getElementById('completed-view').className = view === 'completed' ? '' : 'hidden';
             
             document.getElementById('capture-btn').className = view === 'capture' ? 'nav-btn active' : 'nav-btn';
             document.getElementById('daily-btn').className = view === 'daily' ? 'nav-btn active' : 'nav-btn';
+            document.getElementById('completed-btn').className = view === 'completed' ? 'nav-btn active' : 'nav-btn';
             
             if (view === 'daily') {
                 updateDailyView();
+                checkForRolloverTasks();
+            } else if (view === 'completed') {
+                renderCompletedTasksHistory();
             }
         }
 
@@ -891,17 +933,44 @@
             const task = tasks.find(task => task.id === id);
             if (task) {
                 task.completed = !task.completed;
+                if (task.completed) {
+                    // Add to completed history when task is completed
+                    addToCompletedHistory(task);
+                }
                 renderTasks();
             }
             
             const dailyTask = dailyTasks.find(task => task.id === id);
             if (dailyTask) {
                 dailyTask.completed = !dailyTask.completed;
+                dailyTask.completedDate = dailyTask.completed ? new Date().toISOString() : null;
+                
+                if (dailyTask.completed) {
+                    // Add to completed history when daily task is completed
+                    addToCompletedHistory(dailyTask);
+                }
+                
                 renderDailyTasks();
                 checkDailyLimit();
             }
             
             saveToStorage();
+        }
+
+        function addToCompletedHistory(task) {
+            const completedTask = {
+                ...task,
+                completedDate: new Date().toISOString(),
+                originalCompletedDate: task.completedDate || new Date().toISOString()
+            };
+            
+            // Avoid duplicates
+            const existingIndex = completedTasksHistory.findIndex(ct => ct.id === task.id);
+            if (existingIndex >= 0) {
+                completedTasksHistory[existingIndex] = completedTask;
+            } else {
+                completedTasksHistory.unshift(completedTask);
+            }
         }
 
         function addToDaily(id) {
@@ -916,17 +985,44 @@
             }
         }
 
+        function completeTask(id) {
+            const dailyTask = dailyTasks.find(task => task.id === id);
+            if (dailyTask && !dailyTask.completed) {
+                dailyTask.completed = true;
+                dailyTask.completedDate = new Date().toISOString();
+                
+                // Add to completed history
+                addToCompletedHistory(dailyTask);
+                
+                // Also mark the main task as completed
+                const mainTask = tasks.find(task => task.id === id);
+                if (mainTask) {
+                    mainTask.completed = true;
+                }
+                
+                saveToStorage();
+                renderDailyTasks();
+                renderTasks();
+                updateDailyView();
+                
+                // Don't show completion modal - just keep the task visible with strikethrough
+            }
+        }
+
         function removeFromDaily(id) {
-            dailyTasks = dailyTasks.filter(task => task.id !== id);
-            saveToStorage();
-            renderDailyTasks();
-            updateDailyView();
+            if (confirm('Remove this task from today\'s focus? It will return to your main task list.')) {
+                dailyTasks = dailyTasks.filter(task => task.id !== id);
+                saveToStorage();
+                renderDailyTasks();
+                updateDailyView();
+            }
         }
 
         function saveToStorage() {
             try {
                 localStorage.setItem('taskManagerTasks', JSON.stringify(tasks));
                 localStorage.setItem('taskManagerDailyTasks', JSON.stringify(dailyTasks));
+                localStorage.setItem('taskManagerCompletedHistory', JSON.stringify(completedTasksHistory));
                 localStorage.setItem('taskManagerCategories', JSON.stringify(categories));
                 localStorage.setItem('taskManagerPriorities', JSON.stringify(priorities));
                 localStorage.setItem('taskManagerLastSave', new Date().toISOString());
@@ -941,6 +1037,7 @@
                 const savedPriorities = localStorage.getItem('taskManagerPriorities');
                 const savedTasks = localStorage.getItem('taskManagerTasks');
                 const savedDailyTasks = localStorage.getItem('taskManagerDailyTasks');
+                const savedCompletedHistory = localStorage.getItem('taskManagerCompletedHistory');
                 
                 if (savedCategories) {
                     categories = JSON.parse(savedCategories);
@@ -964,11 +1061,16 @@
                     });
                 }
                 
+                if (savedCompletedHistory) {
+                    completedTasksHistory = JSON.parse(savedCompletedHistory);
+                }
+                
                 checkNewDay();
             } catch (error) {
                 console.warn('Could not load from localStorage:', error);
                 tasks = [];
                 dailyTasks = [];
+                completedTasksHistory = [];
             }
         }
 
@@ -979,6 +1081,10 @@
                 const today = new Date();
                 
                 if (lastSaveDate.toDateString() !== today.toDateString()) {
+                    // Store previous day's daily tasks for rollover
+                    localStorage.setItem('taskManagerPreviousDailyTasks', JSON.stringify(dailyTasks));
+                    
+                    // Reset daily tasks for new day
                     dailyTasks = [];
                     saveToStorage();
                 }
@@ -1044,37 +1150,30 @@
             
             let html = '';
             
-            if (completedTasks.length > 0) {
+            // Show all tasks together - completed and active
+            const tasksByCategory = {};
+            Object.keys(categories).forEach(key => {
+                tasksByCategory[key] = dailyTasks.filter(task => task.category === key);
+            });
+            
+            html += '<div class="grid grid-2">';
+            Object.entries(tasksByCategory).forEach(([categoryKey, categoryTasks]) => {
+                if (categoryTasks.length === 0) return;
+                
+                const activeCount = categoryTasks.filter(t => !t.completed).length;
+                const completedCount = categoryTasks.filter(t => t.completed).length;
+                
                 html += `
-                    <div class="alert alert-success">
-                        <h3 class="font-bold mb-4">✅ Completed Today (${completedTasks.length})</h3>
-                        ${completedTasks.map(task => renderTaskItem(task, false, true)).join('')}
+                    <div>
+                        <h3 class="font-bold mb-4" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="width: 12px; height: 12px; border-radius: 50%; background: ${getCategoryColor(categoryKey)};"></span>
+                            ${categories[categoryKey].name} (${activeCount} active${completedCount > 0 ? `, ${completedCount} done` : ''})
+                        </h3>
+                        ${categoryTasks.map(task => renderTaskItem(task, false, true)).join('')}
                     </div>
                 `;
-            }
-            
-            if (activeTasks.length > 0) {
-                const tasksByCategory = {};
-                Object.keys(categories).forEach(key => {
-                    tasksByCategory[key] = activeTasks.filter(task => task.category === key);
-                });
-                
-                html += '<div class="grid grid-2">';
-                Object.entries(tasksByCategory).forEach(([categoryKey, categoryTasks]) => {
-                    if (categoryTasks.length === 0) return;
-                    
-                    html += `
-                        <div>
-                            <h3 class="font-bold mb-4" style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="width: 12px; height: 12px; border-radius: 50%; background: ${getCategoryColor(categoryKey)};"></span>
-                                ${categories[categoryKey].name} (${categoryTasks.length})
-                            </h3>
-                            ${categoryTasks.map(task => renderTaskItem(task, false, true)).join('')}
-                        </div>
-                    `;
-                });
-                html += '</div>';
-            }
+            });
+            html += '</div>';
             
             container.innerHTML = html;
         }
@@ -1102,9 +1201,16 @@
                             </button>
                         ` : ''}
                         ${fromDaily ? `
-                            <button class="icon-btn danger" onclick="removeFromDaily(${task.id})" title="Remove from daily">
-                                ❌
-                            </button>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                ${!task.completed ? `
+                                    <button class="btn btn-sm btn-success" onclick="completeTask(${task.id})" title="Mark as complete">
+                                        Task Complete
+                                    </button>
+                                ` : ''}
+                                <button class="btn btn-sm btn-secondary" onclick="removeFromDaily(${task.id})" title="Remove from daily focus">
+                                    Remove Task
+                                </button>
+                            </div>
                         ` : `
                             <button class="icon-btn danger" onclick="deleteTask(${task.id})" title="Delete task">
                                 🗑️
@@ -1151,12 +1257,9 @@
         }
 
         function checkDailyLimit() {
-            const completedToday = dailyTasks.filter(task => task.completed).length;
-            const activeTasks = dailyTasks.filter(task => !task.completed);
-            
-            if (completedToday > 0 && activeTasks.length < 10) {
-                showCompletionModal(completedToday, 10 - activeTasks.length);
-            }
+            // Removed the automatic completion modal
+            // Tasks now stay visible with strikethrough when completed
+            // This provides better continuity and visual progress tracking
         }
 
         function showCompletionModal(completed, available) {
@@ -1318,6 +1421,197 @@
             renderDailyTasks();
             updateDailyView();
             hideAddTasksModal();
+        }
+
+        function checkForRolloverTasks() {
+            const today = new Date().toDateString();
+            const previousDailyTasks = JSON.parse(localStorage.getItem('taskManagerPreviousDailyTasks') || '[]');
+            
+            // Find uncompleted tasks from previous days
+            const rolloverTasks = previousDailyTasks.filter(task => 
+                !task.completed && 
+                new Date(task.addedToDaily || task.createdAt).toDateString() !== today
+            );
+            
+            const rolloverSection = document.getElementById('rollover-section');
+            
+            if (rolloverTasks.length > 0) {
+                rolloverSection.classList.remove('hidden');
+                renderRolloverTasks(rolloverTasks);
+            } else {
+                rolloverSection.classList.add('hidden');
+            }
+        }
+
+        function renderRolloverTasks(rolloverTasks) {
+            const container = document.getElementById('rollover-tasks-list');
+            
+            let html = '';
+            rolloverTasks.forEach(task => {
+                const daysAgo = Math.floor((new Date() - new Date(task.addedToDaily || task.createdAt)) / (1000 * 60 * 60 * 24));
+                html += `
+                    <div style="display: flex; justify-content: between; align-items: center; padding: 0.5rem; background: white; border-radius: 0.25rem; margin-bottom: 0.5rem;">
+                        <div style="flex: 1;">
+                            <strong>${task.text}</strong>
+                            <div style="font-size: 0.75rem; color: #6b7280;">
+                                <span class="badge badge-${task.category}" style="margin-right: 0.5rem;">${categories[task.category]?.name || 'Unknown'}</span>
+                                <span class="badge badge-${task.priority}">${task.priority}</span>
+                                <span style="margin-left: 0.5rem;">${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="rolloverSingleTask(${task.id})" style="margin-left: 1rem;">
+                            Roll Over
+                        </button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function rolloverSingleTask(taskId) {
+            const activeDailyTasks = dailyTasks.filter(t => !t.completed);
+            
+            if (activeDailyTasks.length >= 10) {
+                alert('You have already reached your daily focus task limit (10 tasks)');
+                return;
+            }
+            
+            const previousTasks = JSON.parse(localStorage.getItem('taskManagerPreviousDailyTasks') || '[]');
+            const taskToRollover = previousTasks.find(task => task.id === taskId);
+            
+            if (taskToRollover && !dailyTasks.find(dt => dt.id === taskId)) {
+                const rolledTask = {
+                    ...taskToRollover,
+                    addedToDaily: new Date().toISOString(),
+                    rolledOver: true
+                };
+                dailyTasks.push(rolledTask);
+                saveToStorage();
+                renderDailyTasks();
+                updateDailyView();
+                checkForRolloverTasks();
+            }
+        }
+
+        function rolloverAllTasks() {
+            const activeDailyTasks = dailyTasks.filter(t => !t.completed);
+            const previousTasks = JSON.parse(localStorage.getItem('taskManagerPreviousDailyTasks') || '[]');
+            const today = new Date().toDateString();
+            
+            const rolloverTasks = previousTasks.filter(task => 
+                !task.completed && 
+                new Date(task.addedToDaily || task.createdAt).toDateString() !== today &&
+                !dailyTasks.find(dt => dt.id === task.id)
+            );
+            
+            const availableSlots = 10 - activeDailyTasks.length;
+            
+            if (rolloverTasks.length > availableSlots) {
+                if (!confirm(`You can only roll over ${availableSlots} task(s) due to the daily limit. Continue with the first ${availableSlots} tasks?`)) {
+                    return;
+                }
+            }
+            
+            const tasksToAdd = rolloverTasks.slice(0, availableSlots);
+            
+            tasksToAdd.forEach(task => {
+                const rolledTask = {
+                    ...task,
+                    addedToDaily: new Date().toISOString(),
+                    rolledOver: true
+                };
+                dailyTasks.push(rolledTask);
+            });
+            
+            saveToStorage();
+            renderDailyTasks();
+            updateDailyView();
+            checkForRolloverTasks();
+        }
+
+        function renderCompletedTasksHistory() {
+            const container = document.getElementById('completed-tasks-container');
+            
+            if (completedTasksHistory.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray py-8">No completed tasks yet.</p>';
+                return;
+            }
+            
+            // Group completed tasks by date
+            const tasksByDate = {};
+            completedTasksHistory.forEach(task => {
+                const completedDate = new Date(task.completedDate).toDateString();
+                if (!tasksByDate[completedDate]) {
+                    tasksByDate[completedDate] = [];
+                }
+                tasksByDate[completedDate].push(task);
+            });
+            
+            // Sort dates (most recent first)
+            const sortedDates = Object.keys(tasksByDate).sort((a, b) => new Date(b) - new Date(a));
+            
+            let html = '';
+            sortedDates.forEach(dateStr => {
+                const tasks = tasksByDate[dateStr];
+                const date = new Date(dateStr);
+                const isToday = date.toDateString() === new Date().toDateString();
+                const isYesterday = date.toDateString() === new Date(Date.now() - 86400000).toDateString();
+                
+                let displayDate = date.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                
+                if (isToday) displayDate = `Today (${displayDate})`;
+                else if (isYesterday) displayDate = `Yesterday (${displayDate})`;
+                
+                html += `
+                    <div class="category-section" style="margin-bottom: 1.5rem;">
+                        <div class="category-header" onclick="toggleCompletedDate('${dateStr}')" style="cursor: pointer;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span>✅</span>
+                                <span class="font-bold">${displayDate} (${tasks.length} tasks)</span>
+                            </div>
+                            <span id="completed-chevron-${dateStr}">▼</span>
+                        </div>
+                        <div class="category-content" id="completed-content-${dateStr}" style="padding: 0.75rem;">
+                            ${tasks.map(task => `
+                                <div class="task-item ${task.category}" style="opacity: 0.8;">
+                                    <div class="checkbox checked">✓</div>
+                                    <div class="task-content">
+                                        <div class="task-text completed">${task.text}</div>
+                                        <div class="task-meta">
+                                            <span class="badge ${categories[task.category]?.badge || 'badge-personal'}">${categories[task.category]?.name || 'Personal'}</span>
+                                            <span class="badge badge-${task.priority}">${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}</span>
+                                            <span style="font-size: 0.75rem; color: #6b7280; margin-left: 0.5rem;">
+                                                Completed at ${new Date(task.completedDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function toggleCompletedDate(dateStr) {
+            const content = document.getElementById(`completed-content-${dateStr}`);
+            const chevron = document.getElementById(`completed-chevron-${dateStr}`);
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                chevron.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                chevron.textContent = '▶';
+            }
         }
     </script>
 </body>
