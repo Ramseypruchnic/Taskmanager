@@ -433,62 +433,117 @@
 
         <div id="sms-view" class="hidden">
             <div class="card">
-                <h2 class="font-bold mb-4">📱 SMS Task Creation</h2>
+                <h2 class="font-bold mb-4">📱 Email & SMS Task Creation</h2>
                 
                 <div class="alert" style="background: #eff6ff; border-color: #3b82f6; color: #1e40af; margin-bottom: 1.5rem;">
-                    <h3 class="font-bold mb-2">📧 Email-to-SMS Gateway Setup</h3>
-                    <p>Send emails to your carrier's SMS gateway to create tasks instantly from your phone!</p>
+                    <h3 class="font-bold mb-2">📧 Gmail Integration</h3>
+                    <p>Connect your Gmail account to automatically import tasks from emails with specific keywords!</p>
                 </div>
 
-                <div style="margin-bottom: 1.5rem;">
-                    <h3 class="font-bold mb-2">🔧 Setup Instructions:</h3>
-                    <ol style="margin-left: 1.5rem; line-height: 1.8;">
-                        <li><strong>Find your carrier's email gateway:</strong></li>
-                        <ul style="margin: 0.5rem 0 1rem 1rem; color: #6b7280;">
-                            <li>Verizon: <code>yournumber@vtext.com</code></li>
-                            <li>AT&T: <code>yournumber@txt.att.net</code></li>
-                            <li>T-Mobile: <code>yournumber@tmomail.net</code></li>
-                            <li>Sprint: <code>yournumber@messaging.sprintpcs.com</code></li>
-                        </ul>
-                        <li><strong>Set up email forwarding</strong> from that address to this app</li>
-                        <li><strong>Send a test email</strong> to verify the connection</li>
-                    </ol>
-                </div>
-
-                <div style="margin-bottom: 1.5rem;">
-                    <h3 class="font-bold mb-2">📝 Message Format:</h3>
-                    <div style="background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; font-family: monospace;">
-                        <div style="margin-bottom: 0.5rem;"><strong>Examples:</strong></div>
-                        <div style="color: #059669; margin-bottom: 0.25rem;">@strategylabs @high Call client about proposal</div>
-                        <div style="color: #dc2626; margin-bottom: 0.25rem;">Buy groceries @personal @low</div>
-                        <div style="color: #7c3aed;">@unomas @medium Check inventory for weekend</div>
+                <!-- Gmail Connection Section -->
+                <div style="margin-bottom: 2rem;">
+                    <h3 class="font-bold mb-2">🔗 Gmail Connection</h3>
+                    <div id="gmail-status" class="alert" style="background: #f3f4f6; border-color: #d1d5db; color: #374151; margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span id="gmail-status-icon">📧</span>
+                            <span id="gmail-status-text">Not connected to Gmail</span>
+                        </div>
+                    </div>
+                    
+                    <div id="gmail-connect-section">
+                        <button class="btn btn-primary" onclick="connectGmail()" id="gmail-connect-btn">
+                            📧 Connect Gmail Account
+                        </button>
+                        <button class="btn btn-secondary" onclick="disconnectGmail()" id="gmail-disconnect-btn" style="display: none; margin-left: 0.5rem;">
+                            🔌 Disconnect
+                        </button>
                     </div>
                 </div>
 
-                <div style="margin-bottom: 1.5rem;">
-                    <h3 class="font-bold mb-2">📧 Email Processing</h3>
-                    <p style="margin-bottom: 1rem; color: #6b7280;">Paste email content below to simulate SMS task creation:</p>
+                <!-- Keyword Filters Section -->
+                <div style="margin-bottom: 2rem;">
+                    <h3 class="font-bold mb-2">🔍 Email Keyword Filters</h3>
+                    <p style="margin-bottom: 1rem; color: #6b7280;">Only emails with these keywords in the subject line will be processed for tasks:</p>
                     
-                    <textarea id="email-content" class="text-input" rows="4" placeholder="Paste email content here to test SMS parsing..."></textarea>
+                    <div id="keyword-filters" class="edit-section" style="display: block;">
+                        <div class="edit-items" id="keywords-list">
+                            <div class="edit-item">
+                                <span>TASK</span>
+                                <button onclick="removeKeyword('TASK')" title="Remove keyword">×</button>
+                            </div>
+                            <div class="edit-item">
+                                <span>TODO</span>
+                                <button onclick="removeKeyword('TODO')" title="Remove keyword">×</button>
+                            </div>
+                            <div class="edit-item">
+                                <span>ACTION</span>
+                                <button onclick="removeKeyword('ACTION')" title="Remove keyword">×</button>
+                            </div>
+                        </div>
+                        <div class="add-item-form">
+                            <input type="text" id="new-keyword-input" class="add-item-input" placeholder="Add keyword filter (e.g., URGENT, PROJECT)" style="text-transform: uppercase;">
+                            <button class="btn btn-sm btn-primary" onclick="addKeyword()">Add Keyword</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email Import Section -->
+                <div style="margin-bottom: 2rem;">
+                    <h3 class="font-bold mb-2">📥 Import Recent Emails</h3>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-success" onclick="importGmailTasks()" id="import-btn" disabled>
+                            📥 Import Tasks from Gmail
+                        </button>
+                        <select id="import-timeframe" class="add-item-input" style="width: auto;">
+                            <option value="1">Last 24 hours</option>
+                            <option value="3">Last 3 days</option>
+                            <option value="7" selected>Last week</option>
+                            <option value="30">Last month</option>
+                        </select>
+                    </div>
+                    <p style="font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem;">
+                        Only emails with keyword filters in the subject line will be imported.
+                    </p>
+                </div>
+
+                <!-- Manual Email Processing Section -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 class="font-bold mb-2">📝 Manual Email Processing</h3>
+                    <p style="margin-bottom: 1rem; color: #6b7280;">For testing or one-off emails, paste content below:</p>
+                    
+                    <textarea id="email-content" class="text-input" rows="4" placeholder="Paste email content here to test task parsing..."></textarea>
                     
                     <button class="btn btn-primary" onclick="processEmailContent()" style="margin-top: 0.5rem;">
                         📧 Process Email & Create Tasks
                     </button>
                 </div>
 
+                <!-- Results Section -->
                 <div id="sms-results" style="display: none;">
                     <h3 class="font-bold mb-2">✅ Processing Results:</h3>
                     <div id="sms-results-content"></div>
                 </div>
 
+                <!-- Instructions Section -->
                 <div style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-radius: 0.5rem; border-left: 4px solid #f59e0b;">
-                    <h4 class="font-bold mb-1">💡 Pro Tips:</h4>
-                    <ul style="margin-left: 1.5rem; color: #92400e;">
-                        <li>Use @ mentions for category and priority</li>
-                        <li>Keep messages short for SMS character limits</li>
-                        <li>Multiple tasks can be separated by line breaks</li>
-                        <li>Tasks without @ mentions default to Personal/Medium</li>
-                    </ul>
+                    <h4 class="font-bold mb-2">💡 How to Use Gmail Integration:</h4>
+                    <ol style="margin-left: 1.5rem; color: #92400e; line-height: 1.6;">
+                        <li><strong>Connect Gmail:</strong> Click "Connect Gmail Account" and authorize access</li>
+                        <li><strong>Set Keywords:</strong> Add keywords like "TASK", "TODO", "PROJECT" to filter emails</li>
+                        <li><strong>Send Emails:</strong> Email yourself with keywords in subject: "TASK: @strategylabs @high Call client"</li>
+                        <li><strong>Import Tasks:</strong> Click "Import Tasks from Gmail" to automatically create tasks</li>
+                        <li><strong>Use @ Syntax:</strong> Include @category and @priority in email body for auto-categorization</li>
+                    </ol>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 1rem; background: #f0fdf4; border-radius: 0.5rem; border-left: 4px solid #10b981;">
+                    <h4 class="font-bold mb-1">📧 Email Format Examples:</h4>
+                    <div style="font-family: monospace; font-size: 0.875rem; color: #065f46;">
+                        <div><strong>Subject:</strong> TASK: Client Follow-up</div>
+                        <div><strong>Body:</strong> @strategylabs @high Call client about proposal deadline</div>
+                        <div style="margin-top: 0.5rem;"><strong>Subject:</strong> TODO: Weekend Tasks</div>
+                        <div><strong>Body:</strong> @personal @low Buy groceries and clean garage</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -527,6 +582,11 @@
         let currentView = 'capture';
         let editingTaskId = null; // Track which task is being edited
         
+        // Gmail integration state
+        let gmailConnected = false;
+        let gmailAccessToken = null;
+        let emailKeywords = ['TASK', 'TODO', 'ACTION']; // Default keywords
+        
         // Customizable categories and priorities
         let categories = {
             personal: { name: 'Personal', badge: 'badge-personal' },
@@ -544,11 +604,14 @@
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
             loadFromStorage();
+            loadGmailSettings();
             updateCurrentDate();
             populateCategoryOptions();
             populatePriorityOptions();
             renderTasks();
             renderDailyTasks();
+            updateGmailStatus();
+            renderKeywords();
             
             // Make functions globally available for onclick handlers
             window.showAddTasksModal = showAddTasksModal;
@@ -564,6 +627,12 @@
             window.editTask = editTask;
             window.saveTaskEdit = saveTaskEdit;
             window.cancelTaskEdit = cancelTaskEdit;
+            window.processEmailContent = processEmailContent;
+            window.connectGmail = connectGmail;
+            window.disconnectGmail = disconnectGmail;
+            window.addKeyword = addKeyword;
+            window.removeKeyword = removeKeyword;
+            window.importGmailTasks = importGmailTasks;
             window.toggleCompletedDate = toggleCompletedDate;
         });
 
@@ -1695,6 +1764,300 @@
             
             // Scroll to results
             resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Gmail Integration Functions
+        function connectGmail() {
+            // Note: This is a simplified demonstration
+            // In a real implementation, you would use Google's OAuth 2.0 flow
+            
+            const clientId = 'YOUR_GOOGLE_CLIENT_ID'; // Same as your existing one
+            const scope = 'https://www.googleapis.com/auth/gmail.readonly';
+            const redirectUri = window.location.origin + window.location.pathname;
+            
+            // For demo purposes, we'll simulate the connection
+            if (confirm('🔐 Gmail Integration Demo\n\nThis would normally redirect to Google for authorization.\n\nFor demonstration, click OK to simulate a successful connection.')) {
+                simulateGmailConnection();
+            }
+        }
+
+        function simulateGmailConnection() {
+            gmailConnected = true;
+            gmailAccessToken = 'demo_token_' + Date.now();
+            
+            updateGmailStatus();
+            
+            // Show success notification
+            const notification = document.createElement('div');
+            notification.innerHTML = '📧 Gmail connected successfully! (Demo Mode)';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem;
+                z-index: 1000;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                font-weight: 500;
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 3000);
+            
+            saveGmailSettings();
+        }
+
+        function disconnectGmail() {
+            if (confirm('Disconnect from Gmail? You\'ll need to reconnect to import emails.')) {
+                gmailConnected = false;
+                gmailAccessToken = null;
+                updateGmailStatus();
+                saveGmailSettings();
+            }
+        }
+
+        function updateGmailStatus() {
+            const statusDiv = document.getElementById('gmail-status');
+            const statusIcon = document.getElementById('gmail-status-icon');
+            const statusText = document.getElementById('gmail-status-text');
+            const connectBtn = document.getElementById('gmail-connect-btn');
+            const disconnectBtn = document.getElementById('gmail-disconnect-btn');
+            const importBtn = document.getElementById('import-btn');
+            
+            if (gmailConnected) {
+                statusDiv.style.background = '#f0fdf4';
+                statusDiv.style.borderColor = '#10b981';
+                statusDiv.style.color = '#065f46';
+                statusIcon.textContent = '✅';
+                statusText.textContent = 'Connected to Gmail (Demo Mode)';
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'inline-block';
+                importBtn.disabled = false;
+            } else {
+                statusDiv.style.background = '#f3f4f6';
+                statusDiv.style.borderColor = '#d1d5db';
+                statusDiv.style.color = '#374151';
+                statusIcon.textContent = '📧';
+                statusText.textContent = 'Not connected to Gmail';
+                connectBtn.style.display = 'inline-block';
+                disconnectBtn.style.display = 'none';
+                importBtn.disabled = true;
+            }
+        }
+
+        function addKeyword() {
+            const input = document.getElementById('new-keyword-input');
+            const keyword = input.value.trim().toUpperCase();
+            
+            if (!keyword) return;
+            
+            if (emailKeywords.includes(keyword)) {
+                alert('Keyword already exists!');
+                return;
+            }
+            
+            emailKeywords.push(keyword);
+            input.value = '';
+            renderKeywords();
+            saveGmailSettings();
+        }
+
+        function removeKeyword(keyword) {
+            if (emailKeywords.length <= 1) {
+                alert('You must have at least one keyword filter.');
+                return;
+            }
+            
+            emailKeywords = emailKeywords.filter(k => k !== keyword);
+            renderKeywords();
+            saveGmailSettings();
+        }
+
+        function renderKeywords() {
+            const container = document.getElementById('keywords-list');
+            
+            const html = emailKeywords.map(keyword => `
+                <div class="edit-item">
+                    <span>${keyword}</span>
+                    <button onclick="removeKeyword('${keyword}')" title="Remove keyword">×</button>
+                </div>
+            `).join('');
+            
+            container.innerHTML = html;
+        }
+
+        function importGmailTasks() {
+            if (!gmailConnected) {
+                alert('Please connect to Gmail first!');
+                return;
+            }
+            
+            const timeframe = document.getElementById('import-timeframe').value;
+            
+            // Show loading state
+            const importBtn = document.getElementById('import-btn');
+            const originalText = importBtn.innerHTML;
+            importBtn.innerHTML = '🔄 Importing...';
+            importBtn.disabled = true;
+            
+            // Simulate Gmail API call with demo data
+            setTimeout(() => {
+                const demoEmails = generateDemoEmails(timeframe);
+                processDemoEmails(demoEmails);
+                
+                // Restore button
+                importBtn.innerHTML = originalText;
+                importBtn.disabled = false;
+            }, 1500);
+        }
+
+        function generateDemoEmails(timeframe) {
+            const demoEmails = [
+                {
+                    subject: 'TASK: Client Follow-up Required',
+                    body: '@strategylabs @high Call client about proposal deadline and contract details',
+                    date: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 hours ago
+                },
+                {
+                    subject: 'TODO: Weekend Personal Tasks',
+                    body: '@personal @low Buy groceries and clean the garage. Also need to schedule dentist appointment.',
+                    date: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
+                },
+                {
+                    subject: 'ACTION: Restaurant Inventory',
+                    body: '@unomas @medium Check inventory levels for weekend rush. Order more beer and update wine list.',
+                    date: new Date(Date.now() - 4 * 60 * 60 * 1000) // 4 hours ago
+                },
+                {
+                    subject: 'Regular email without keywords',
+                    body: 'This email should be ignored because it has no keywords',
+                    date: new Date()
+                },
+                {
+                    subject: 'TASK: Multiple tasks in one email',
+                    body: `@strategylabs @high Review marketing campaign results
+                    @personal @medium Pay monthly bills
+                    @unomas @low Update social media posts`,
+                    date: new Date(Date.now() - 6 * 60 * 60 * 1000) // 6 hours ago
+                }
+            ];
+            
+            // Filter emails based on timeframe
+            const cutoffDate = new Date(Date.now() - timeframe * 24 * 60 * 60 * 1000);
+            
+            return demoEmails.filter(email => {
+                // Check if subject contains any of our keywords
+                const hasKeyword = emailKeywords.some(keyword => 
+                    email.subject.toUpperCase().includes(keyword)
+                );
+                
+                // Check if email is within timeframe
+                const isRecent = email.date >= cutoffDate;
+                
+                return hasKeyword && isRecent;
+            });
+        }
+
+        function processDemoEmails(emails) {
+            const results = {
+                tasksCreated: [],
+                emailsProcessed: emails.length,
+                emailsSkipped: 0
+            };
+            
+            emails.forEach(email => {
+                const emailResults = parseEmailForTasks(email.body);
+                
+                emailResults.tasksCreated.forEach(taskResult => {
+                    // Add email metadata
+                    taskResult.task.emailSubject = email.subject;
+                    taskResult.task.emailDate = email.date;
+                    taskResult.task.createdViaEmail = true;
+                    
+                    results.tasksCreated.push(taskResult);
+                });
+            });
+            
+            displayEmailImportResults(results);
+        }
+
+        function displayEmailImportResults(results) {
+            const resultsDiv = document.getElementById('sms-results');
+            const contentDiv = document.getElementById('sms-results-content');
+            
+            let html = `
+                <div class="alert alert-success" style="margin-bottom: 1rem;">
+                    <h4 class="font-bold">📧 Gmail Import Results:</h4>
+                    <div style="margin: 0.5rem 0;">
+                        <strong>📬 Emails processed:</strong> ${results.emailsProcessed}<br>
+                        <strong>✅ Tasks created:</strong> ${results.tasksCreated.length}
+                    </div>
+                </div>
+            `;
+            
+            if (results.tasksCreated.length > 0) {
+                html += `
+                    <div class="alert" style="background: #f0fdf4; border-color: #10b981; color: #065f46; margin-bottom: 1rem;">
+                        <h4 class="font-bold">📋 New Tasks Created:</h4>
+                        ${results.tasksCreated.map(item => `
+                            <div style="margin: 0.5rem 0; padding: 0.5rem; background: white; border-radius: 0.25rem;">
+                                <div><strong>"${item.task.text}"</strong></div>
+                                <div style="font-size: 0.75rem; color: #6b7280;">
+                                    <span class="badge ${categories[item.task.category].badge}">${categories[item.task.category].name}</span>
+                                    <span class="badge badge-${item.task.priority}" style="margin-left: 0.5rem;">${item.task.priority}</span>
+                                    <span style="margin-left: 0.5rem;">📧 via Email</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem;">
+                                    From: "${item.task.emailSubject}"
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            if (results.tasksCreated.length === 0) {
+                html += `
+                    <div class="alert" style="background: #fef3c7; border-color: #f59e0b; color: #92400e;">
+                        No tasks found in recent emails with keyword filters. Make sure your emails have keywords like "${emailKeywords.join('", "')}" in the subject line.
+                    </div>
+                `;
+            }
+            
+            contentDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function saveGmailSettings() {
+            try {
+                const settings = {
+                    gmailConnected: gmailConnected,
+                    gmailAccessToken: gmailAccessToken,
+                    emailKeywords: emailKeywords
+                };
+                localStorage.setItem('taskManagerGmailSettings', JSON.stringify(settings));
+            } catch (error) {
+                console.warn('Could not save Gmail settings:', error);
+            }
+        }
+
+        function loadGmailSettings() {
+            try {
+                const settings = localStorage.getItem('taskManagerGmailSettings');
+                if (settings) {
+                    const parsed = JSON.parse(settings);
+                    gmailConnected = parsed.gmailConnected || false;
+                    gmailAccessToken = parsed.gmailAccessToken || null;
+                    emailKeywords = parsed.emailKeywords || ['TASK', 'TODO', 'ACTION'];
+                }
+            } catch (error) {
+                console.warn('Could not load Gmail settings:', error);
+            }
         }
 
         function updateDailyView() {
