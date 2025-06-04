@@ -291,6 +291,14 @@
         
         .hidden { display: none; }
         
+        .edit-task-form {
+            width: 100%;
+            padding: 0.5rem;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+        }
+        
         @media (max-width: 768px) {
             .container { padding: 0.5rem; }
             .nav { flex-wrap: wrap; }
@@ -310,6 +318,7 @@
                 <button class="nav-btn active" onclick="showView('capture')" id="capture-btn">📝 Capture & Organize</button>
                 <button class="nav-btn" onclick="showView('daily')" id="daily-btn">🎯 Daily Focus</button>
                 <button class="nav-btn" onclick="showView('completed')" id="completed-btn">📊 Completed Tasks</button>
+                <button class="nav-btn" onclick="showView('sms')" id="sms-btn">📱 SMS Setup</button>
                 <button class="nav-btn" onclick="exportTasks()" title="Download backup">💾 Download Backup</button>
             </div>
         </div>
@@ -421,6 +430,68 @@
                 </div>
             </div>
         </div>
+
+        <div id="sms-view" class="hidden">
+            <div class="card">
+                <h2 class="font-bold mb-4">📱 SMS Task Creation</h2>
+                
+                <div class="alert" style="background: #eff6ff; border-color: #3b82f6; color: #1e40af; margin-bottom: 1.5rem;">
+                    <h3 class="font-bold mb-2">📧 Email-to-SMS Gateway Setup</h3>
+                    <p>Send emails to your carrier's SMS gateway to create tasks instantly from your phone!</p>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 class="font-bold mb-2">🔧 Setup Instructions:</h3>
+                    <ol style="margin-left: 1.5rem; line-height: 1.8;">
+                        <li><strong>Find your carrier's email gateway:</strong></li>
+                        <ul style="margin: 0.5rem 0 1rem 1rem; color: #6b7280;">
+                            <li>Verizon: <code>yournumber@vtext.com</code></li>
+                            <li>AT&T: <code>yournumber@txt.att.net</code></li>
+                            <li>T-Mobile: <code>yournumber@tmomail.net</code></li>
+                            <li>Sprint: <code>yournumber@messaging.sprintpcs.com</code></li>
+                        </ul>
+                        <li><strong>Set up email forwarding</strong> from that address to this app</li>
+                        <li><strong>Send a test email</strong> to verify the connection</li>
+                    </ol>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 class="font-bold mb-2">📝 Message Format:</h3>
+                    <div style="background: #f3f4f6; padding: 1rem; border-radius: 0.5rem; font-family: monospace;">
+                        <div style="margin-bottom: 0.5rem;"><strong>Examples:</strong></div>
+                        <div style="color: #059669; margin-bottom: 0.25rem;">@strategylabs @high Call client about proposal</div>
+                        <div style="color: #dc2626; margin-bottom: 0.25rem;">Buy groceries @personal @low</div>
+                        <div style="color: #7c3aed;">@unomas @medium Check inventory for weekend</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 class="font-bold mb-2">📧 Email Processing</h3>
+                    <p style="margin-bottom: 1rem; color: #6b7280;">Paste email content below to simulate SMS task creation:</p>
+                    
+                    <textarea id="email-content" class="text-input" rows="4" placeholder="Paste email content here to test SMS parsing..."></textarea>
+                    
+                    <button class="btn btn-primary" onclick="processEmailContent()" style="margin-top: 0.5rem;">
+                        📧 Process Email & Create Tasks
+                    </button>
+                </div>
+
+                <div id="sms-results" style="display: none;">
+                    <h3 class="font-bold mb-2">✅ Processing Results:</h3>
+                    <div id="sms-results-content"></div>
+                </div>
+
+                <div style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-radius: 0.5rem; border-left: 4px solid #f59e0b;">
+                    <h4 class="font-bold mb-1">💡 Pro Tips:</h4>
+                    <ul style="margin-left: 1.5rem; color: #92400e;">
+                        <li>Use @ mentions for category and priority</li>
+                        <li>Keep messages short for SMS character limits</li>
+                        <li>Multiple tasks can be separated by line breaks</li>
+                        <li>Tasks without @ mentions default to Personal/Medium</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div id="add-tasks-modal" class="modal">
@@ -490,6 +561,9 @@
             window.completeTask = completeTask;
             window.uncompleteTask = uncompleteTask;
             window.duplicateTask = duplicateTask;
+            window.editTask = editTask;
+            window.saveTaskEdit = saveTaskEdit;
+            window.cancelTaskEdit = cancelTaskEdit;
             window.toggleCompletedDate = toggleCompletedDate;
         });
 
@@ -512,10 +586,12 @@
             document.getElementById('capture-view').className = view === 'capture' ? '' : 'hidden';
             document.getElementById('daily-view').className = view === 'daily' ? '' : 'hidden';
             document.getElementById('completed-view').className = view === 'completed' ? '' : 'hidden';
+            document.getElementById('sms-view').className = view === 'sms' ? '' : 'hidden';
             
             document.getElementById('capture-btn').className = view === 'capture' ? 'nav-btn active' : 'nav-btn';
             document.getElementById('daily-btn').className = view === 'daily' ? 'nav-btn active' : 'nav-btn';
             document.getElementById('completed-btn').className = view === 'completed' ? 'nav-btn active' : 'nav-btn';
+            document.getElementById('sms-btn').className = view === 'sms' ? 'nav-btn active' : 'nav-btn';
             
             if (view === 'daily') {
                 updateDailyView();
@@ -1057,6 +1133,100 @@
             }
         }
 
+        function editTask(id) {
+            // Cancel any existing edit
+            if (editingTaskId !== null) {
+                cancelTaskEdit();
+            }
+            
+            editingTaskId = id;
+            renderTasks();
+            renderDailyTasks();
+            
+            // Focus on the text input
+            setTimeout(() => {
+                const textInput = document.getElementById(`edit-text-${id}`);
+                if (textInput) {
+                    textInput.focus();
+                    textInput.select();
+                }
+            }, 50);
+        }
+
+        function saveTaskEdit(id) {
+            const textInput = document.getElementById(`edit-text-${id}`);
+            const categorySelect = document.getElementById(`edit-category-${id}`);
+            const prioritySelect = document.getElementById(`edit-priority-${id}`);
+            
+            if (!textInput || !categorySelect || !prioritySelect) return;
+            
+            const newText = textInput.value.trim();
+            const newCategory = categorySelect.value;
+            const newPriority = prioritySelect.value;
+            
+            if (!newText) {
+                alert('Task name cannot be empty!');
+                textInput.focus();
+                return;
+            }
+            
+            // Update main task
+            const mainTask = tasks.find(task => task.id === id);
+            if (mainTask) {
+                mainTask.text = newText;
+                mainTask.category = newCategory;
+                mainTask.priority = newPriority;
+            }
+            
+            // Update daily task if it exists
+            const dailyTask = dailyTasks.find(task => task.id === id);
+            if (dailyTask) {
+                dailyTask.text = newText;
+                dailyTask.category = newCategory;
+                dailyTask.priority = newPriority;
+            }
+            
+            // Update completed history if it exists
+            const completedTask = completedTasksHistory.find(task => task.id === id);
+            if (completedTask) {
+                completedTask.text = newText;
+                completedTask.category = newCategory;
+                completedTask.priority = newPriority;
+            }
+            
+            editingTaskId = null;
+            saveToStorage();
+            renderTasks();
+            renderDailyTasks();
+            
+            // Show success notification
+            const notification = document.createElement('div');
+            notification.innerHTML = '✏️ Task updated successfully!';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem;
+                z-index: 1000;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                font-weight: 500;
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 2000);
+        }
+
+        function cancelTaskEdit() {
+            editingTaskId = null;
+            renderTasks();
+            renderDailyTasks();
+        }
+
         function uncompleteTask(id) {
             const dailyTask = dailyTasks.find(task => task.id === id);
             if (dailyTask && dailyTask.completed) {
@@ -1359,6 +1529,172 @@
                 content.style.display = 'none';
                 chevron.textContent = '▶';
             }
+        }
+
+        function processEmailContent() {
+            const emailContent = document.getElementById('email-content').value.trim();
+            
+            if (!emailContent) {
+                alert('Please paste some email content to process!');
+                return;
+            }
+            
+            const results = parseEmailForTasks(emailContent);
+            displaySMSResults(results);
+            
+            // Clear the textarea
+            document.getElementById('email-content').value = '';
+        }
+
+        function parseEmailForTasks(emailContent) {
+            const results = {
+                tasksCreated: [],
+                errors: [],
+                rawContent: emailContent
+            };
+            
+            // Split by lines and clean up
+            const lines = emailContent.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+            
+            lines.forEach((line, index) => {
+                try {
+                    // Skip obvious email headers or formatting
+                    if (line.includes('@') && (line.includes('.com') || line.includes('From:') || line.includes('To:') || line.includes('Subject:'))) {
+                        return; // Skip email headers
+                    }
+                    
+                    // Skip very short lines that are likely not tasks
+                    if (line.length < 3) {
+                        return;
+                    }
+                    
+                    const task = parseTaskFromText(line);
+                    if (task) {
+                        // Add SMS indicator
+                        task.createdViaSMS = true;
+                        task.smsSource = 'Email Gateway';
+                        
+                        // Add to tasks
+                        tasks.unshift(task);
+                        results.tasksCreated.push({
+                            task: task,
+                            originalLine: line
+                        });
+                    }
+                } catch (error) {
+                    results.errors.push({
+                        line: line,
+                        error: error.message
+                    });
+                }
+            });
+            
+            if (results.tasksCreated.length > 0) {
+                saveToStorage();
+                renderTasks();
+            }
+            
+            return results;
+        }
+
+        function parseTaskFromText(text) {
+            let taskText = text.trim();
+            let selectedCategory = null;
+            let selectedPriority = null;
+            
+            // Parse @ mentions and remove them from task text
+            const atMentions = taskText.match(/@\w+/g) || [];
+            
+            atMentions.forEach(mention => {
+                const mentionText = mention.substring(1).toLowerCase();
+                
+                // Check if it matches a category
+                Object.entries(categories).forEach(([key, category]) => {
+                    if (category.name.toLowerCase().replace(/\s+/g, '') === mentionText ||
+                        key === mentionText) {
+                        selectedCategory = key;
+                    }
+                });
+                
+                // Check if it matches a priority
+                priorities.forEach(priority => {
+                    if (priority.toLowerCase() === mentionText) {
+                        selectedPriority = priority;
+                    }
+                });
+                
+                // Remove the @ mention from the text
+                taskText = taskText.replace(mention, '').trim();
+            });
+            
+            // Clean up multiple spaces
+            taskText = taskText.replace(/\s+/g, ' ').trim();
+            
+            if (!taskText) return null; // Don't create empty tasks
+            
+            return {
+                id: Date.now() + Math.random(), // Ensure unique IDs
+                text: taskText,
+                category: selectedCategory || 'personal',
+                priority: selectedPriority || 'medium',
+                completed: false,
+                createdAt: new Date()
+            };
+        }
+
+        function displaySMSResults(results) {
+            const resultsDiv = document.getElementById('sms-results');
+            const contentDiv = document.getElementById('sms-results-content');
+            
+            let html = '';
+            
+            if (results.tasksCreated.length > 0) {
+                html += `
+                    <div class="alert alert-success" style="margin-bottom: 1rem;">
+                        <h4 class="font-bold">✅ Created ${results.tasksCreated.length} task(s):</h4>
+                        ${results.tasksCreated.map(item => `
+                            <div style="margin: 0.5rem 0; padding: 0.5rem; background: white; border-radius: 0.25rem;">
+                                <div><strong>"${item.task.text}"</strong></div>
+                                <div style="font-size: 0.75rem; color: #6b7280;">
+                                    <span class="badge ${categories[item.task.category].badge}">${categories[item.task.category].name}</span>
+                                    <span class="badge badge-${item.task.priority}" style="margin-left: 0.5rem;">${item.task.priority}</span>
+                                    <span style="margin-left: 0.5rem;">📧 via SMS</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem;">
+                                    Original: "${item.originalLine}"
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            if (results.errors.length > 0) {
+                html += `
+                    <div class="alert" style="background: #fef2f2; border-color: #ef4444; color: #991b1b; margin-bottom: 1rem;">
+                        <h4 class="font-bold">⚠️ Errors (${results.errors.length}):</h4>
+                        ${results.errors.map(error => `
+                            <div style="margin: 0.25rem 0;">"${error.line}" - ${error.error}</div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            if (results.tasksCreated.length === 0 && results.errors.length === 0) {
+                html = `
+                    <div class="alert" style="background: #fef3c7; border-color: #f59e0b; color: #92400e;">
+                        No tasks found in the provided content. Make sure to include task descriptions with optional @category and @priority tags.
+                    </div>
+                `;
+            }
+            
+            contentDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+            
+            // Scroll to results
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
         function updateDailyView() {
